@@ -4,6 +4,8 @@ bin
 cj/
 view/c
 .idea
+.htaccess
+api.php
 
 CharonFiles/vendor/
 
