@@ -1,0 +1,19 @@
+{
+  "name": "wolfaryx/miniphprest",
+  "description": "description",
+  "minimum-stability": "stable",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "Aryx",
+      "email": "wolfaryx@gmail.com"
+    }
+  ],
+  "require": {
+    "php": ">=7.4",
+    "ext-json": "*"
+  },
+  "autoload": {
+    "psr-0": {"php": ""}
+  }
+}
