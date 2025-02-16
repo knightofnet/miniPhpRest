@@ -4,15 +4,20 @@ namespace MiniPhpRest;
 
 use MiniPhpRest\core\RequestObject;
 use MiniPhpRest\core\ResponseObject;
+use MiniPhpRest\core\utils\lang\StringUtils;
 
 class Runner
 {
-    public const defaultClassFolder = "php";
-    public const defaultNamespace = "MiniPhpRest";
+    private const defaultPhpExtension = "php";
+    private const defaultNamespace = "MiniPhpRest";
 
-    public static function followRoute($routes, $options = ["test" => "t"]): void
+    private static $appClassFolders = ["php/app"];
+
+    public static function followRoute($routes, $options = ["appClassFolders" => ["/php/"]]): void
     {
         self::checkRequirements();
+
+        self::$appClassFolders = $options["appClassFolders"];
 
 
         $response = null;
@@ -36,6 +41,10 @@ class Runner
         if (!defined('MINI_PHPREST_SERVER_ROOT')) {
             throw new \Exception('MINI_PHPREST_SERVER_ROOT not defined');
         }
+
+        if (!defined('MINI_PHPREST_NAMESPACE')) {
+            throw new \Exception('MINI_PHPREST_NAMESPACE not defined');
+        }
     }
 
     public static function doResponse(ResponseObject $responseObject)
@@ -54,12 +63,30 @@ class Runner
     public static function executeRoute(RequestObject $route): ResponseObject
     {
 
+        $classFilePath = "";
+        $appClassFolderFound = null;
+        foreach (self::$appClassFolders as $appClassFolder) {
+            if (!StringUtils::str_starts_with($appClassFolder, '/')) {
+                $appClassFolder = '/' . $appClassFolder;
+                // TODO Warning
+            }
+            if (!StringUtils::str_ends_with($appClassFolder, '/')) {
+                $appClassFolder = $appClassFolder . '/';
+                // TODO Warning
+            }
 
-        $classFilePath = Runner::findClass($route->getController());
+            $classFilePath = Runner::findClass($route->getController(), $appClassFolder);
+            if (!empty($classFilePath)) {
+                $appClassFolderFound = $appClassFolder;
+                break;
+            }
+        }
+
+
         if (empty($classFilePath)) {
             throw new \Exception('Class file not found');
         }
-        $classPath = Runner::filePathToNamespace($classFilePath);
+        $classPath = Runner::filePathToNamespace($classFilePath, $appClassFolderFound);
         if (empty($classPath)) {
             throw new \Exception('Class not found');
         }
@@ -126,7 +153,7 @@ class Runner
     private static function findClass($className, $folderApp = "/app/")
     {
 
-        $res = scandir(__DIR__ . $folderApp);
+        $res = scandir(MINI_PHPREST_SERVER_ROOT . $folderApp);
 
         //var_dump($res);
 
@@ -135,11 +162,11 @@ class Runner
                 continue;
             }
 
-            $isFile = is_file(__DIR__ . $folderApp . $eltFolder);
+            $isFile = is_file(MINI_PHPREST_SERVER_ROOT . $folderApp . $eltFolder);
             if ($isFile) {
                 $fileExploded = explode('.', $eltFolder);
-                if ($fileExploded[1] === Runner::defaultClassFolder && $fileExploded[0] == $className) {
-                    return __DIR__ . $folderApp . $eltFolder;
+                if ($fileExploded[1] === Runner::defaultPhpExtension && $fileExploded[0] == $className) {
+                    return MINI_PHPREST_SERVER_ROOT . $folderApp . $eltFolder;
                 }
             } else {
                 return Runner::findClass($className, $folderApp . $eltFolder . '/');
@@ -151,10 +178,16 @@ class Runner
 
     }
 
-    private static function filePathToNamespace($classFilePath)
+    private static function filePathToNamespace($pclassFilePath, $appClassFolderFound)
     {
         //var_dump($classFilePath);
-        $classFilePath = str_replace(__DIR__, Runner::defaultNamespace, $classFilePath);
+
+        $toReplace = MINI_PHPREST_SERVER_ROOT . $appClassFolderFound;
+        if (StringUtils::str_ends_with($toReplace, '/')) {
+            $toReplace = substr($toReplace, 0, strlen($toReplace) - 1);
+        }
+
+        $classFilePath = str_replace($toReplace, MINI_PHPREST_NAMESPACE, $pclassFilePath);
         $classFilePath = str_replace('/', '\\', $classFilePath);
         $classFilePath = str_replace('.php', '', $classFilePath);
         return $classFilePath;
