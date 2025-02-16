@@ -12,6 +12,8 @@ class Runner
 
     public static function followRoute($routes, $options = ["test" => "t"]): void
     {
+        self::checkRequirements();
+
 
         $response = null;
         try {
@@ -28,6 +30,12 @@ class Runner
 
         Runner::doResponse($response);
 
+    }
+
+    public static function checkRequirements() : void {
+        if (!defined('MINI_PHPREST_SERVER_ROOT')) {
+            throw new \Exception('MINI_PHPREST_SERVER_ROOT not defined');
+        }
     }
 
     public static function doResponse(ResponseObject $responseObject)
@@ -48,7 +56,13 @@ class Runner
 
 
         $classFilePath = Runner::findClass($route->getController());
+        if (empty($classFilePath)) {
+            throw new \Exception('Class file not found');
+        }
         $classPath = Runner::filePathToNamespace($classFilePath);
+        if (empty($classPath)) {
+            throw new \Exception('Class not found');
+        }
 
         $instance = new $classPath;
 
