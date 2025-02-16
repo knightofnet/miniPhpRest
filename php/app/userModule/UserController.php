@@ -1,16 +1,18 @@
 <?php
 
-namespace php\app\userModule;
+namespace MiniPhpRest\app\userModule;
 
-use php\core\AbstractController;
-use php\core\ResponseObject;
+use MiniPhpRest\core\AbstractController;
+use MiniPhpRest\core\ResponseObject;
 
 class UserController extends AbstractController
 {
 
-    public function index()
+    public function index() : ResponseObject
     {
         echo 'List all users';
+
+        return ResponseObject::ResultCodeHttp(500);
     }
 
     public function show(int $test) : ResponseObject {

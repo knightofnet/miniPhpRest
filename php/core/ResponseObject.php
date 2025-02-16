@@ -1,9 +1,9 @@
 <?php
 
-namespace php\core;
+namespace MiniPhpRest\core;
 
 use Closure as ClosureAlias;
-use php\core\utils\lang\StringUtils;
+use MiniPhpRest\core\utils\lang\StringUtils;
 
 class ResponseObject
 {
@@ -51,7 +51,7 @@ class ResponseObject
         $rep->statusCode = 200;
         $rep->headers[] = 'Content-Type: ' . $contentType;
         $rep->headers[] = 'Content-Transfer-Encoding: Binary';
-        $rep->headers[] = 'Content-disposition: attachment; filename="' .  $fileName . '"';
+        $rep->headers[] = 'Content-disposition: attachment; filename="' . $fileName . '"';
 
         $rep->action = function () use ($fileUrl) {
             if (readfile($fileUrl) !== false) {
@@ -93,8 +93,6 @@ class ResponseObject
         $this->action = $action;
         return $this;
     }
-
-
 
 
 }

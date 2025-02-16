@@ -1,13 +1,16 @@
 <?php
 
-namespace php;
+namespace MiniPhpRest;
 
-use php\core\RequestObject;
-use php\core\ResponseObject;
+use MiniPhpRest\core\RequestObject;
+use MiniPhpRest\core\ResponseObject;
 
 class Runner
 {
-    public static function followRoute($routes): void
+    public const defaultClassFolder = "php";
+    public const defaultNamespace = "MiniPhpRest";
+
+    public static function followRoute($routes, $options = ["test" => "t"]): void
     {
 
         $response = null;
@@ -121,7 +124,7 @@ class Runner
             $isFile = is_file(__DIR__ . $folderApp . $eltFolder);
             if ($isFile) {
                 $fileExploded = explode('.', $eltFolder);
-                if ($fileExploded[1] === "php" && $fileExploded[0] == $className) {
+                if ($fileExploded[1] === Runner::defaultClassFolder && $fileExploded[0] == $className) {
                     return __DIR__ . $folderApp . $eltFolder;
                 }
             } else {
@@ -137,7 +140,7 @@ class Runner
     private static function filePathToNamespace($classFilePath)
     {
         //var_dump($classFilePath);
-        $classFilePath = str_replace(__DIR__, 'php', $classFilePath);
+        $classFilePath = str_replace(__DIR__, Runner::defaultNamespace, $classFilePath);
         $classFilePath = str_replace('/', '\\', $classFilePath);
         $classFilePath = str_replace('.php', '', $classFilePath);
         return $classFilePath;
@@ -161,7 +164,9 @@ class Runner
             return false;
         }
 
-        if ($reflection->getReturnType()->getName() !== 'php\core\ResponseObject') {
+
+        if ($reflection->getReturnType() == null
+            || $reflection->getReturnType()->getName() !== Runner::defaultNamespace. '\core\ResponseObject') {
             return false;
         }
 

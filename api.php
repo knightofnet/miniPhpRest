@@ -1,4 +1,7 @@
 <?php
+
+use MiniPhpRest\Runner;
+
 require_once ('vendor/autoload.php');
 $routes = [
     'GET' => [
@@ -16,4 +19,4 @@ $routes = [
     ],
 ];
 
-\php\Runner::followRoute($routes);
+Runner::followRoute($routes);

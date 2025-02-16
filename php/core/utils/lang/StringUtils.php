@@ -1,6 +1,6 @@
 <?php
 
-namespace php\core\utils\lang;
+namespace MiniPhpRest\core\utils\lang;
 
 /**
  * Classe utilitaire pour les chaînes de caractères

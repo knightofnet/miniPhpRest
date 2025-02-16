@@ -1,6 +1,6 @@
 <?php
 
-namespace php\core;
+namespace MiniPhpRest\core;
 
 class AbstractController
 {

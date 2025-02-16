@@ -1,6 +1,6 @@
 <?php
 
-namespace php\core;
+namespace MiniPhpRest\core;
 
 class RequestObject
 {
@@ -102,7 +102,7 @@ class RequestObject
      */
     public function setBody($content) : RequestObject
     {
-        if ($content !== false) {
+        if (!empty($content)) {
             $this->bodyJson = json_decode($content, true);
         }
         return $this;

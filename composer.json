@@ -14,6 +14,6 @@
     "ext-json": "*"
   },
   "autoload": {
-    "psr-0": {"php": ""}
+    "psr-4": {"MiniPhpRest\\": "php/"}
   }
 }
