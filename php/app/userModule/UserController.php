@@ -10,9 +10,19 @@ class UserController extends AbstractController
 
     public function index() : ResponseObject
     {
-        echo 'List all users';
+        $retMsg = [
+            'result' => true,
+            'content'=> [
+                'users' => [
+                    ['id' => 1, 'name' => 'John Doe'],
+                    ['id' => 2, 'name' => 'Jane Doe'],
+                    ['id' => 3, 'name' => 'Jim Doe'],
+                ]
+            ],
+            'message'=> ''];
 
-        return ResponseObject::ResultCodeHttp(500);
+        return ResponseObject::ResultsObjectToJson($retMsg, 200);
+        //return ResponseObject::ResultCodeHttp(500);
     }
 
     public function show(int $test) : ResponseObject {

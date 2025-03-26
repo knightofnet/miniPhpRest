@@ -2,22 +2,26 @@
 
 namespace MiniPhpRest;
 
+use MiniPhpRest\core\AbstractController;
+use MiniPhpRest\core\MiniPhpRestConfig;
 use MiniPhpRest\core\RequestObject;
 use MiniPhpRest\core\ResponseObject;
 use MiniPhpRest\core\utils\lang\StringUtils;
+use MiniPhpRest\core\utils\ResponseUtils;
 
 class Runner
 {
     private const defaultPhpExtension = "php";
     private const defaultNamespace = "MiniPhpRest";
 
-    private static $appClassFolders = ["php/app"];
+    private static MiniPhpRestConfig $config;
 
-    public static function followRoute($routes, $options = ["appClassFolders" => ["/php/"]]): void
+
+    public static function followRoute($routes, MiniPhpRestConfig $config): void
     {
-        self::checkRequirements();
+        //self::checkRequirements();
 
-        self::$appClassFolders = $options["appClassFolders"];
+        self::$config = $config;
 
 
         $response = null;
@@ -30,86 +34,42 @@ class Runner
             }
         } catch (\Exception $e) {
             //var_dump($e);
-            $response = ResponseObject::ResultCodeHttp(500);
+            if (self::$config->isDebug()) {
+
+                $response = ResponseUtils::getDefaultResponseArray(
+                    false,
+                    [$e->getTraceAsString()
+                    ],
+                    'exception',
+                    $e->getMessage()
+                );
+
+
+                $response = ResponseObject::ResultsObjectToJson($response, 500);
+            } else {
+
+                $response = ResponseObject::ResultCodeHttp(500);
+            }
+
         }
 
         Runner::doResponse($response);
 
     }
 
-    public static function checkRequirements() : void {
-        if (!defined('MINI_PHPREST_SERVER_ROOT')) {
-            throw new \Exception('MINI_PHPREST_SERVER_ROOT not defined');
-        }
-
-        if (!defined('MINI_PHPREST_NAMESPACE')) {
-            throw new \Exception('MINI_PHPREST_NAMESPACE not defined');
-        }
-    }
-
-    public static function doResponse(ResponseObject $responseObject)
+    private static function getRequest($routes)
     {
-        http_response_code($responseObject->getStatusCode());
+        $method = $_SERVER['REQUEST_METHOD'];
+        $uri = $_SERVER['REQUEST_URI'];
+        $uri = explode('?', $uri)[0];
+        $uri = rtrim($uri, '/');
+        $uri = explode('/', $uri);
+        $uri = array_slice($uri, 2);
+        $uri = '/' . implode('/', $uri);
 
-        foreach ($responseObject->getHeaders() as $header) {
-            header($header);
-        }
+        $route = Runner::buildRequestFromRoute($uri, $routes, $method);
 
-        if (null != $responseObject->getAction()) {
-            call_user_func($responseObject->getAction());
-        }
-    }
-
-    public static function executeRoute(RequestObject $route): ResponseObject
-    {
-
-        $classFilePath = "";
-        $appClassFolderFound = null;
-        foreach (self::$appClassFolders as $appClassFolder) {
-            if (!StringUtils::str_starts_with($appClassFolder, '/')) {
-                $appClassFolder = '/' . $appClassFolder;
-                // TODO Warning
-            }
-            if (!StringUtils::str_ends_with($appClassFolder, '/')) {
-                $appClassFolder = $appClassFolder . '/';
-                // TODO Warning
-            }
-
-            $classFilePath = Runner::findClass($route->getController(), $appClassFolder);
-            if (!empty($classFilePath)) {
-                $appClassFolderFound = $appClassFolder;
-                break;
-            }
-        }
-
-
-        if (empty($classFilePath)) {
-            throw new \Exception('Class file not found');
-        }
-        $classPath = Runner::filePathToNamespace($classFilePath, $appClassFolderFound);
-        if (empty($classPath)) {
-            throw new \Exception('Class not found');
-        }
-
-        $instance = new $classPath;
-
-        $isPhpMethodValid = Runner::isMethodValids($instance, $route->getMethod(), $route);
-        if (!$isPhpMethodValid) {
-            http_response_code(404);
-            throw new \Exception('Method not found');
-        }
-
-        Runner::hydrateRouteTypedArgs($route, $instance);
-        $route->setBody(file_get_contents('php://input'));
-
-
-        $instance->setRequest($route);
-        /** @var ResponseObject $responseHttp */
-        $responseHttp = call_user_func_array([$instance, $route->getMethod()], $route->getMethodArgsTyped());
-
-        return $responseHttp;
-
-
+        return $route;
     }
 
     /**
@@ -150,10 +110,66 @@ class Runner
         return null;
     }
 
+    public static function executeRoute(RequestObject $route): ResponseObject
+    {
+
+        $classFilePath = "";
+        $appClassFolderFound = null;
+        foreach (self::$config->getAppClassFolders() as  $appNamespace => $appClassFolder) {
+            if (!StringUtils::str_starts_with($appClassFolder, '/')) {
+                $appClassFolder = '/' . $appClassFolder;
+                // TODO Warning
+            }
+            if (!StringUtils::str_ends_with($appClassFolder, '/')) {
+                $appClassFolder = $appClassFolder . '/';
+                // TODO Warning
+            }
+
+            $classFilePath = Runner::findClass($route->getController(), $appClassFolder);
+            if (!empty($classFilePath)) {
+                $appClassFolderFound = $appClassFolder;
+                break;
+            }
+        }
+
+
+        if (empty($classFilePath)) {
+            throw new \Exception('Class file not found');
+        }
+        $classPath = Runner::filePathToNamespace($classFilePath, $appClassFolderFound, $appNamespace);
+        if (empty($classPath)) {
+            throw new \Exception('Class not found');
+        }
+
+
+        $instance = new $classPath;
+        if (!($instance instanceof AbstractController)) {
+            throw new \Exception('Class not found');
+        }
+
+        $isPhpMethodValid = Runner::isMethodValids($instance, $route->getMethod(), $route);
+        if (!$isPhpMethodValid) {
+            http_response_code(404);
+            throw new \Exception('Method not found');
+        }
+
+        Runner::hydrateRouteTypedArgs($route, $instance);
+        $route->setBody(file_get_contents('php://input'));
+
+
+        $instance->setRequest($route);
+        /** @var ResponseObject $responseHttp */
+        $responseHttp = call_user_func_array([$instance, $route->getMethod()], $route->getMethodArgsTyped());
+
+        return $responseHttp;
+
+
+    }
+
     private static function findClass($className, $folderApp = "/app/")
     {
 
-        $res = scandir(MINI_PHPREST_SERVER_ROOT . $folderApp);
+        $res = scandir(self::$config->getServerRootPath() . $folderApp);
 
         //var_dump($res);
 
@@ -162,11 +178,11 @@ class Runner
                 continue;
             }
 
-            $isFile = is_file(MINI_PHPREST_SERVER_ROOT . $folderApp . $eltFolder);
+            $isFile = is_file(self::$config->getServerRootPath() . $folderApp . $eltFolder);
             if ($isFile) {
                 $fileExploded = explode('.', $eltFolder);
                 if ($fileExploded[1] === Runner::defaultPhpExtension && $fileExploded[0] == $className) {
-                    return MINI_PHPREST_SERVER_ROOT . $folderApp . $eltFolder;
+                    return self::$config->getServerRootPath(). $folderApp . $eltFolder;
                 }
             } else {
                 return Runner::findClass($className, $folderApp . $eltFolder . '/');
@@ -178,16 +194,16 @@ class Runner
 
     }
 
-    private static function filePathToNamespace($pclassFilePath, $appClassFolderFound)
+    private static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
     {
         //var_dump($classFilePath);
 
-        $toReplace = MINI_PHPREST_SERVER_ROOT . $appClassFolderFound;
+        $toReplace = self::$config->getServerRootPath() . $appClassFolderFound;
         if (StringUtils::str_ends_with($toReplace, '/')) {
             $toReplace = substr($toReplace, 0, strlen($toReplace) - 1);
         }
 
-        $classFilePath = str_replace($toReplace, MINI_PHPREST_NAMESPACE, $pclassFilePath);
+        $classFilePath = str_replace($toReplace, $appNamespace, $pclassFilePath);
         $classFilePath = str_replace('/', '\\', $classFilePath);
         $classFilePath = str_replace('.php', '', $classFilePath);
         return $classFilePath;
@@ -213,7 +229,7 @@ class Runner
 
 
         if ($reflection->getReturnType() == null
-            || $reflection->getReturnType()->getName() !== Runner::defaultNamespace. '\core\ResponseObject') {
+            || $reflection->getReturnType()->getName() !== Runner::defaultNamespace . '\core\ResponseObject') {
             return false;
         }
 
@@ -299,19 +315,28 @@ class Runner
         }
     }
 
-    private static function getRequest($routes)
+    public static function doResponse(ResponseObject $responseObject)
     {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $uri = $_SERVER['REQUEST_URI'];
-        $uri = explode('?', $uri)[0];
-        $uri = rtrim($uri, '/');
-        $uri = explode('/', $uri);
-        $uri = array_slice($uri, 2);
-        $uri = '/' . implode('/', $uri);
+        http_response_code($responseObject->getStatusCode());
 
-        $route = Runner::buildRequestFromRoute($uri, $routes, $method);
+        foreach ($responseObject->getHeaders() as $header) {
+            header($header);
+        }
 
-        return $route;
+        if (null != $responseObject->getAction()) {
+            call_user_func($responseObject->getAction());
+        }
+    }
+
+    public static function checkRequirements(): void
+    {
+        if (!defined('MINI_PHPREST_SERVER_ROOT')) {
+            throw new \Exception('MINI_PHPREST_SERVER_ROOT not defined');
+        }
+
+        if (!defined('MINI_PHPREST_NAMESPACE')) {
+            throw new \Exception('MINI_PHPREST_NAMESPACE not defined');
+        }
     }
 
 }
