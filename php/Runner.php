@@ -185,13 +185,16 @@ class Runner
                     return self::$config->getServerRootPath(). $folderApp . $eltFolder;
                 }
             } else {
-                return Runner::findClass($className, $folderApp . $eltFolder . '/');
+                $res = Runner::findClass($className, $folderApp . $eltFolder . '/');
+                if (!empty($res)) {
+                    return $res;
+                }
             }
 
 
         }
 
-
+        return null;
     }
 
     private static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
