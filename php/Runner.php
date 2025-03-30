@@ -154,7 +154,19 @@ class Runner
         }
 
         Runner::hydrateRouteTypedArgs($route, $instance);
-        $route->setBody(file_get_contents('php://input'));
+        $phpInput = file_get_contents('php://input');
+        if ('POST' !== $phpInput) {
+            $phpInput = json_decode($phpInput, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new \Exception('Invalid JSON');
+            }
+            $route->setBody($phpInput);
+            $route->setBodySource("json");
+        } else {
+            $route->setBody($_POST);
+            $route->setBodySource("post");
+        }
+
 
 
         $instance->setRequest($route);

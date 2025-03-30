@@ -18,6 +18,7 @@ class RequestObject
      * @var array $bodyJson
      */
     private array $bodyJson = [];
+    private string $bodySource;
 
     public function getHttpMethod(): string
     {
@@ -100,7 +101,7 @@ class RequestObject
      * @param string|bool $file_get_contents
      * @return void
      */
-    public function setBody($content) : RequestObject
+    public function setBody($content): RequestObject
     {
         if (!empty($content)) {
             $this->bodyJson = json_decode($content, true);
@@ -113,7 +114,16 @@ class RequestObject
         return $this->bodyJson;
     }
 
+    public function getBodySource(): string
+    {
+        return $this->bodySource;
+    }
 
+    public function setBodySource(string $bodySource): RequestObject
+    {
+        $this->bodySource = $bodySource;
+        return $this;
+    }
 
 
 }
