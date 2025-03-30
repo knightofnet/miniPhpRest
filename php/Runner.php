@@ -32,7 +32,7 @@ class Runner
             } else {
                 $response = Runner::executeRoute($request);
             }
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             //var_dump($e);
             if (self::$config->isDebug()) {
 
