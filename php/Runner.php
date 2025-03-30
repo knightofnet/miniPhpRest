@@ -115,7 +115,7 @@ class Runner
 
         $classFilePath = "";
         $appClassFolderFound = null;
-        foreach (self::$config->getAppClassFolders() as  $appNamespace => $appClassFolder) {
+        foreach (self::$config->getAppClassFolders() as $appNamespace => $appClassFolder) {
             if (!StringUtils::str_starts_with($appClassFolder, '/')) {
                 $appClassFolder = '/' . $appClassFolder;
                 // TODO Warning
@@ -155,18 +155,12 @@ class Runner
 
         Runner::hydrateRouteTypedArgs($route, $instance);
         $phpInput = file_get_contents('php://input');
-        if ('POST' !== $phpInput) {
-            $phpInput = json_decode($phpInput, true);
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new \Exception('Invalid JSON');
-            }
+
+        $phpInput = json_decode($phpInput, true);
+        if (!empty($phpInput)) {
             $route->setBody($phpInput);
             $route->setBodySource("json");
-        } else {
-            $route->setBody($_POST);
-            $route->setBodySource("post");
         }
-
 
 
         $instance->setRequest($route);
@@ -194,7 +188,7 @@ class Runner
             if ($isFile) {
                 $fileExploded = explode('.', $eltFolder);
                 if ($fileExploded[1] === Runner::defaultPhpExtension && $fileExploded[0] == $className) {
-                    return self::$config->getServerRootPath(). $folderApp . $eltFolder;
+                    return self::$config->getServerRootPath() . $folderApp . $eltFolder;
                 }
             } else {
                 $res = Runner::findClass($className, $folderApp . $eltFolder . '/');
