@@ -103,9 +103,7 @@ class RequestObject
      */
     public function setBody($content): RequestObject
     {
-        if (!empty($content)) {
-            $this->bodyJson = json_decode($content, true);
-        }
+        $this->bodyJson = $content;
         return $this;
     }
 
