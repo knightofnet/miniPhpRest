@@ -64,7 +64,7 @@ class Runner
         $uri = explode('?', $uri)[0];
         $uri = rtrim($uri, '/');
         $uri = explode('/', $uri);
-        $uri = array_slice($uri, 2);
+        $uri = array_slice($uri, self::$config->getUriSliceOffset());
         $uri = '/' . implode('/', $uri);
 
         $route = Runner::buildRequestFromRoute($uri, $routes, $method);

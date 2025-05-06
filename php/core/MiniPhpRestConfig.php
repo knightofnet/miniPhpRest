@@ -17,6 +17,8 @@ class MiniPhpRestConfig
         'Base' => 'php'
     ];
 
+    private int $uriSliceOffset = 2;
+
     private string $serverRootPath = '';
 
     public function getAppClassFolders(): array
@@ -51,6 +53,18 @@ class MiniPhpRestConfig
         $this->serverRootPath = $serverRootPath;
         return $this;
     }
+
+    public function getUriSliceOffset(): int
+    {
+        return $this->uriSliceOffset;
+    }
+
+    public function setUriSliceOffset(int $uriSliceOffset): MiniPhpRestConfig
+    {
+        $this->uriSliceOffset = $uriSliceOffset;
+        return $this;
+    }
+
 
 
 
