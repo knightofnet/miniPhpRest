@@ -3,6 +3,7 @@
 namespace MiniPhpRest;
 
 use MiniPhpRest\core\AbstractController;
+use MiniPhpRest\core\exception\DirectResponseException;
 use MiniPhpRest\core\MiniPhpRestConfig;
 use MiniPhpRest\core\RequestObject;
 use MiniPhpRest\core\ResponseObject;
@@ -32,7 +33,23 @@ class Runner
             } else {
                 $response = Runner::executeRoute($request);
             }
-        } catch (\Throwable $e) {
+        } catch(DirectResponseException $e) {
+
+            if (empty($e->getMessage())) {
+                $response = ResponseObject::ResultCodeHttp($e->getStatusCode());
+            } else {
+                $response = ResponseUtils::getDefaultResponseArray(
+                    false,
+                    [],
+                    'exception',
+                    $e->getMessage()
+                );
+                $response = ResponseObject::ResultsObjectToJson($response, $e->getStatusCode());
+            }
+
+
+        }
+        catch (\Throwable $e) {
             //var_dump($e);
             if (self::$config->isDebug()) {
 
