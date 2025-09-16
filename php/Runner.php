@@ -108,7 +108,7 @@ class Runner
 
         // find route with args : ex /api/v1/users/{id}
         foreach ($routes[$method] as $route => $controllerAndMethod) {
-            $routeRegex = preg_replace('/{[a-zA-Z0-9]+}/', '([a-zA-Z0-9]+)', $route);
+            $routeRegex = preg_replace('/{[a-zA-Z0-9]+}/', '([a-zA-Z0-9%]+)', $route);
             $routeRegex = str_replace('/', '\/', $routeRegex);
             if (preg_match_all('/^' . $routeRegex . '$/', $uri, $matches) === 1) {
                 list($controller, $method) = explode('@', $controllerAndMethod);
@@ -264,6 +264,11 @@ class Runner
             $arg = $args[$i];
 
             $paramType = $param->getType();
+
+            if ($paramType == null) {
+                // no type
+                return false;
+            }
 
             if (!$paramType->isBuiltin()) {
                 // only builtin type
