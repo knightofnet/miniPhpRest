@@ -2,8 +2,9 @@
 
 namespace MiniPhpRest;
 
+use MiniPhpRest\app\debug\DebugController;
 use MiniPhpRest\core\AbstractController;
-use MiniPhpRest\core\exception\DirectResponseException;
+use MiniPhpRest\core\exception\RouteFormatUnknownException;
 use MiniPhpRest\core\MiniPhpRestConfig;
 use MiniPhpRest\core\RequestObject;
 use MiniPhpRest\core\ResponseObject;
@@ -17,13 +18,15 @@ class Runner
 
     private static MiniPhpRestConfig $config;
 
-
     public static function followRoute($routes, MiniPhpRestConfig $config): void
     {
-        //self::checkRequirements();
+
 
         self::$config = $config;
 
+        if ($config->isDebug()) {
+            $routes = self::addDebugRoutes($routes);
+        }
 
         $response = null;
         try {
@@ -33,7 +36,7 @@ class Runner
             } else {
                 $response = Runner::executeRoute($request);
             }
-        } catch(DirectResponseException $e) {
+        } catch (RouteFormatUnknownException $e) {
 
             if (empty($e->getMessage())) {
                 $response = ResponseObject::ResultCodeHttp($e->getStatusCode());
@@ -48,8 +51,7 @@ class Runner
             }
 
 
-        }
-        catch (\Throwable $e) {
+        } catch (\Throwable $e) {
             //var_dump($e);
             if (self::$config->isDebug()) {
 
@@ -98,7 +100,7 @@ class Runner
     private static function buildRequestFromRoute(string $uri, array $routes, string $method): ?RequestObject
     {
         if (isset($routes[$method][$uri])) {
-            list($controller, $method) = explode('@', $routes[$method][$uri]);
+            list($controller, $method) = self::extractClassAndMethodFromRoute($routes[$method][$uri]);
             return (new RequestObject())
                 ->setHttpMethod($method)
                 ->setUri($uri)
@@ -111,7 +113,7 @@ class Runner
             $routeRegex = preg_replace('/{[a-zA-Z0-9]+}/', '([a-zA-Z0-9%]+)', $route);
             $routeRegex = str_replace('/', '\/', $routeRegex);
             if (preg_match_all('/^' . $routeRegex . '$/', $uri, $matches) === 1) {
-                list($controller, $method) = explode('@', $controllerAndMethod);
+                list($controller, $method) = self::extractClassAndMethodFromRoute($controllerAndMethod);
                 $argsFromMatches = array_slice($matches, 1);
 
                 return (new RequestObject())
@@ -130,30 +132,40 @@ class Runner
     public static function executeRoute(RequestObject $route): ResponseObject
     {
 
-        $classFilePath = "";
-        $appClassFolderFound = null;
-        foreach (self::$config->getAppClassFolders() as $appNamespace => $appClassFolder) {
-            if (!StringUtils::str_starts_with($appClassFolder, '/')) {
-                $appClassFolder = '/' . $appClassFolder;
-                // TODO Warning
-            }
-            if (!StringUtils::str_ends_with($appClassFolder, '/')) {
-                $appClassFolder = $appClassFolder . '/';
-                // TODO Warning
+        /** @var string $classPath Classpath to instance */
+        $classPath = null;
+
+        $isControllerFullClassPath = $route->getController() !== null && stripos($route->getController(), '\\') !== false;
+
+        if (!$isControllerFullClassPath) {
+
+            $classFilePath = "";
+            $appClassFolderFound = null;
+            foreach (self::$config->getAppClassFolders() as $appNamespace => $appClassFolder) {
+                if (!StringUtils::str_starts_with($appClassFolder, '/')) {
+                    $appClassFolder = '/' . $appClassFolder;
+                    // TODO Warning
+                }
+                if (!StringUtils::str_ends_with($appClassFolder, '/')) {
+                    $appClassFolder = $appClassFolder . '/';
+                    // TODO Warning
+                }
+
+                $classFilePath = Runner::findClass($route->getController(), $appClassFolder);
+                if (!empty($classFilePath)) {
+                    $appClassFolderFound = $appClassFolder;
+                    break;
+                }
             }
 
-            $classFilePath = Runner::findClass($route->getController(), $appClassFolder);
-            if (!empty($classFilePath)) {
-                $appClassFolderFound = $appClassFolder;
-                break;
+
+            if (empty($classFilePath)) {
+                throw new \Exception('Class file not found');
             }
+            $classPath = Runner::filePathToNamespace($classFilePath, $appClassFolderFound, $appNamespace);
+        } else {
+            $classPath = $route->getController();
         }
-
-
-        if (empty($classFilePath)) {
-            throw new \Exception('Class file not found');
-        }
-        $classPath = Runner::filePathToNamespace($classFilePath, $appClassFolderFound, $appNamespace);
         if (empty($classPath)) {
             throw new \Exception('Class not found');
         }
@@ -161,7 +173,7 @@ class Runner
 
         $instance = new $classPath;
         if (!($instance instanceof AbstractController)) {
-            throw new \Exception('Class not found');
+            throw new \Exception('Class not found or not instance of AbstractController');
         }
 
         $isPhpMethodValid = Runner::isMethodValids($instance, $route->getMethod(), $route);
@@ -185,7 +197,6 @@ class Runner
         $responseHttp = call_user_func_array([$instance, $route->getMethod()], $route->getMethodArgsTyped());
 
         return $responseHttp;
-
 
     }
 
@@ -359,15 +370,31 @@ class Runner
         }
     }
 
-    public static function checkRequirements(): void
+
+    private static function extractClassAndMethodFromRoute($route)
     {
-        if (!defined('MINI_PHPREST_SERVER_ROOT')) {
-            throw new \Exception('MINI_PHPREST_SERVER_ROOT not defined');
+
+        if (is_string($route)) {
+            return explode('@', $route);
         }
 
-        if (!defined('MINI_PHPREST_NAMESPACE')) {
-            throw new \Exception('MINI_PHPREST_NAMESPACE not defined');
+        if (is_array($route) && count($route) === 2) {
+            return $route;
         }
+
+        throw new RouteFormatUnknownException($route);
+
+    }
+
+    private static function addDebugRoutes($routes)
+    {
+        define("DEFINED_ROUTES", $routes);
+
+        $routes['GET']['/api/v1/debug/phpInfo'] = [DebugController::class, 'showPhpInfo'];
+        $routes['GET']['/api/v1/debug/showsRoutes'] = [DebugController::class, 'showsRoutes'];
+
+        return $routes;
+
     }
 
 }
