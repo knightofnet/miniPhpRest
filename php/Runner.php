@@ -18,7 +18,7 @@ class Runner
 
     private static MiniPhpRestConfig $config;
 
-    public static function followRoute($routes, MiniPhpRestConfig $config): void
+    public static function followRoute($routes, MiniPhpRestConfig $config): ResponseObject
     {
 
 
@@ -30,6 +30,7 @@ class Runner
 
         self::verifyConfig($config);
         define('MINIPHPREST_SERVER_ROOT_PATH', $config->getServerRootPath());
+
 
         $response = null;
         try {
@@ -77,12 +78,14 @@ class Runner
 
         Runner::doResponse($response);
 
+        return $response;
+
     }
 
     private static function getRequest($routes)
     {
-        $method = $_SERVER['REQUEST_METHOD'];
-        $uri = $_SERVER['REQUEST_URI'];
+        $method = self::$config->getServerParamObject()->getRequestMethod();
+        $uri = self::$config->getServerParamObject()->getRequestURI();
         $uri = explode('?', $uri)[0];
         $uri = rtrim($uri, '/');
         $uri = explode('/', $uri);
@@ -108,10 +111,10 @@ class Runner
         if (isset($routes[$method][$uri])) {
             list($controller, $classMethod) = self::extractClassAndMethodFromRoute($routes[$method][$uri]);
             return (new RequestObject())
-                ->setHttpMethod($classMethod)
+                ->setHttpMethod($method)
                 ->setUri($uri)
                 ->setController($controller)
-                ->setMethod($method);
+                ->setMethod($classMethod);
         }
 
         // find route with args : ex /api/v1/users/{id}
@@ -196,7 +199,7 @@ class Runner
                         $message = 'Argument count does not match';
                         break;
                     case 4:
-                        $message = 'Method return type is not ResponseObject';
+                        $message = 'DEV_ERROR : Method return type is not ResponseObject';
                         break;
                     default:
                         if ($validateMethodSigRetCode >= 10) {
@@ -204,10 +207,10 @@ class Runner
                             $errorType = $validateMethodSigRetCode % 10;
                             switch ($errorType) {
                                 case 1:
-                                    $message = "Argument " . ($argIndex + 1) . " has no type";
+                                    $message = "DEV_ERROR : Argument " . ($argIndex + 1) . " has no type";
                                     break;
                                 case 2:
-                                    $message = "Argument " . ($argIndex + 1) . " is no a builtin type";
+                                    $message = "DEV_ERROR : Argument " . ($argIndex + 1) . " is no a builtin type";
                                     break;
                                 case 3:
                                     $message = "Argument " . ($argIndex + 1) . " is not compatible with its type";
@@ -356,8 +359,7 @@ class Runner
         return 1;
     }
 
-    private
-    static function hydrateRouteTypedArgs(RequestObject $route, $instance): void
+    private static function hydrateRouteTypedArgs(RequestObject $route, $instance): void
     {
         if (!method_exists($instance, $route->getMethod())) {
             throw new \Exception('Method not found');
@@ -391,8 +393,7 @@ class Runner
         }
     }
 
-    public
-    static function doResponse(ResponseObject $responseObject)
+    public static function doResponse(ResponseObject $responseObject)
     {
         http_response_code($responseObject->getStatusCode());
 
@@ -444,9 +445,17 @@ class Runner
 
     private static function verifyConfig(MiniPhpRestConfig $config)
     {
+
+
         if (empty($config->getServerRootPath())) {
             throw new \Exception('Server root path not defined in MiniPhpRestConfig');
         }
+
+        if ($config->getServerParamObject() == null) {
+            throw new \Exception('ServerParamObject not defined in MiniPhpRestConfig');
+        }
+
+
     }
 
     /**
@@ -468,7 +477,8 @@ class Runner
 
         if ($typeName === 'float') {
 
-            if (!filter_var($value, FILTER_VALIDATE_FLOAT)) {}
+            if (!filter_var($value, FILTER_VALIDATE_FLOAT)) {
+            }
 
             if (!preg_match("/^-?\d+(\.\d+)?$/", $value)) {
                 return false;

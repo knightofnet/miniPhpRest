@@ -11,6 +11,11 @@ class MiniPhpRestConfig
     private bool $isDebug = false;
 
     /**
+     * @var ServerParamObject
+     */
+    private ServerParamObject $serverParamObject;
+
+    /**
      * @var string[] $appClassFolders
      */
     private array $appClassFolders = [
@@ -20,6 +25,12 @@ class MiniPhpRestConfig
     private int $uriSliceOffset = 2;
 
     private string $serverRootPath = '';
+
+    public function __construct()
+    {
+        $this->serverParamObject = ServerParamObject::fromGlobals();
+    }
+
 
     public function getAppClassFolders(): array
     {
@@ -65,11 +76,16 @@ class MiniPhpRestConfig
         return $this;
     }
 
+    public function getServerParamObject(): ServerParamObject
+    {
+        return $this->serverParamObject;
+    }
 
-
-
-
-
+    public function setServerParamObject(ServerParamObject $serverParamObject): MiniPhpRestConfig
+    {
+        $this->serverParamObject = $serverParamObject;
+        return $this;
+    }
 
 
 }
