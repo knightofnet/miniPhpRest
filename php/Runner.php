@@ -99,13 +99,16 @@ class Runner
      * @param array[] $routes
      * @param string $method
      * @return RequestObject|null
+     *
+     * @throws RouteFormatUnknownException Le format de l'URI de la route est invalide.
+     *
      */
     private static function buildRequestFromRoute(string $uri, array $routes, string $method): ?RequestObject
     {
         if (isset($routes[$method][$uri])) {
-            list($controller, $method) = self::extractClassAndMethodFromRoute($routes[$method][$uri]);
+            list($controller, $classMethod) = self::extractClassAndMethodFromRoute($routes[$method][$uri]);
             return (new RequestObject())
-                ->setHttpMethod($method)
+                ->setHttpMethod($classMethod)
                 ->setUri($uri)
                 ->setController($controller)
                 ->setMethod($method);
@@ -116,7 +119,7 @@ class Runner
             $routeRegex = preg_replace('/{[a-zA-Z0-9]+}/', '([a-zA-Z0-9%]+)', $route);
             $routeRegex = str_replace('/', '\/', $routeRegex);
             if (preg_match_all('/^' . $routeRegex . '$/', $uri, $matches) === 1) {
-                list($controller, $method) = self::extractClassAndMethodFromRoute($controllerAndMethod);
+                list($controller, $classMethod) = self::extractClassAndMethodFromRoute($controllerAndMethod);
                 $argsFromMatches = array_slice($matches, 1);
 
                 return (new RequestObject())
@@ -124,7 +127,7 @@ class Runner
                     ->setUri($uri)
                     ->setRegexMatched($routeRegex)
                     ->setController($controller)
-                    ->setMethod($method)
+                    ->setMethod($classMethod)
                     ->setMethodArgs(array_map(fn($match) => $match[0], $argsFromMatches));
             }
         }
@@ -241,8 +244,7 @@ class Runner
 
     }
 
-    private
-    static function findClass($className, $folderApp = "/app/")
+    private static function findClass($className, $folderApp = "/app/")
     {
 
         $res = scandir(self::$config->getServerRootPath() . $folderApp);
@@ -273,8 +275,7 @@ class Runner
         return null;
     }
 
-    private
-    static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
+    private static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
     {
         //var_dump($classFilePath);
 
@@ -405,10 +406,20 @@ class Runner
     }
 
 
-    private  static function extractClassAndMethodFromRoute($route)
+    /**
+     * Retourne le nom de la classe et de la méthode à partir de l'URI de la route
+     * @param array|string $route l'URI de la route. Soit un tableau de éléments [classe, méthode],
+     *                      soit une chaine au format 'classe@methode'
+     * @return string[] la classe et la méthode à appeler
+     * @throws RouteFormatUnknownException Le format de l'URI de la route est invalide.
+     */
+    private static function extractClassAndMethodFromRoute($route): array
     {
 
         if (is_string($route)) {
+            if (StringUtils::indexOf($route, '@') === -1) {
+                throw new RouteFormatUnknownException($route);
+            }
             return explode('@', $route);
         }
 
