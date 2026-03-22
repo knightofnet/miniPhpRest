@@ -14,6 +14,7 @@ class TestArgumentsController extends AbstractController
         self::$received = [];
     }
 
+
     public function oneString(string $name): ResponseObject
     {
         self::$received = [$name];
