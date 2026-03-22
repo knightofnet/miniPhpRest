@@ -335,6 +335,7 @@ class Runner
         $reflection = new \ReflectionMethod($instance, $route->getMethod());
         $params = $reflection->getParameters();
 
+        $methodArgs = [];
 
         for ($i = 0; $i < count($params); $i++) {
             $param = $params[$i];
@@ -343,8 +344,6 @@ class Runner
             $paramType = $param->getType();
 
             $paramTypeName = $paramType->getName();
-
-            $methodArgs = [];
 
             if ($paramTypeName === 'int') {
                 $methodArgs[] = intval($arg);
