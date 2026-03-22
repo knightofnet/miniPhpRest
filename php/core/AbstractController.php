@@ -19,5 +19,10 @@ class AbstractController
         return $this;
     }
 
+    public function initialize(): void
+    {
+        // Override in child classes if needed
+    }
+
 
 }

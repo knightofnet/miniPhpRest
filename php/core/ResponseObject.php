@@ -16,6 +16,7 @@ class ResponseObject
     /** @var ClosureAlias|null */
     private ?ClosureAlias $action = null;
 
+
     public static function ResultsObjectToJson($object, int $codeHttp = 200): ResponseObject
     {
 

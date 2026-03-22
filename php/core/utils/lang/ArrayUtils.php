@@ -31,12 +31,13 @@ class ArrayUtils
     /**
      * Trouve le premier élément du tableau qui satisfait la condition spécifiée par la fonction de rappel.
      *
-     * @param \Closure $lambda La fonction de rappel qui prend un élément du tableau et renvoie un booléen.
-     * @param array $array Le tableau à vérifier.
-     * @return mixed Renvoie le premier élément qui satisfait la condition, ou null si aucun élément ne la satisfait.
+     * @template T
+     * @param callable(T):bool $lambda La fonction de rappel qui prend un élément du tableau et renvoie un booléen.
+     * @param array<int, T> $array Le tableau à vérifier.
+     * @return T|null Renvoie le premier élément qui satisfait la condition, ou null si aucun élément ne la satisfait.
      * @throws \Error Si la fonction de rappel ne renvoie pas un booléen.
      */
-    public static function findOne(\Closure $lambda, array &$array)
+    public static function findOne(callable $lambda, array $array)
     {
         foreach ($array as $elt) {
             $resFn = call_user_func($lambda, $elt);
@@ -54,15 +55,16 @@ class ArrayUtils
     /**
      * Trouve tous les éléments du tableau qui satisfont la condition spécifiée par la fonction de rappel.
      *
-     * @param \Closure $lambda La fonction de rappel qui prend un élément du tableau et renvoie un booléen.
-     * @param array $array Le tableau à vérifier.
-     * @return array Renvoie un tableau contenant tous les éléments qui satisfont la condition. Cette méthode renvoie
+     * @template T La fonction de rappel qui prend un élément du tableau et renvoie un booléen.
+     * @param callable(T):bool $lambda
+     * @param array<int, T> $array Le tableau à vérifier.
+     * @return array<int, T> Renvoie un tableau contenant tous les éléments qui satisfont la condition. Cette méthode renvoie
      *              un nouveau tableau contenant tous les éléments du tableau d'origine qui satisfont la condition
      *              spécifiée par la fonction de rappel. Les clés du tableau d'origine ne sont pas conservées.
      *              Les éléments dans le tableau renvoyé sont indexés avec des clés numériques commençant à zéro
      * @throws \Error Si la fonction de rappel ne renvoie pas un booléen.
      */
-    public static function find(\Closure $lambda, array &$array): array
+    public static function find(callable $lambda, array $array): array
     {
         $retArray = [];
         foreach ($array as $elt) {
@@ -88,7 +90,7 @@ class ArrayUtils
      *              spécifiée par la fonction de rappel. Les clés du tableau d'origine sont conservées.
      * @throws \Error Si la fonction de rappel ne renvoie pas un booléen.
      */
-    public static function where(\Closure $lambda, array &$array): array
+    public static function where(\Closure $lambda, array $array): array
     {
         $retArray = [];
         foreach ($array as $k => $elt) {
@@ -105,11 +107,27 @@ class ArrayUtils
     }
 
 
+    /**
+     * Retourne le premier élément d'un tableau.
+     *
+     * @template T
+     *
+     * @param array<T> $array le tableau
+     * @return T le premier élément du tableau
+     */
     public static function first(array $array)
     {
         return $array[array_key_first($array)];
     }
 
+    /**
+     * Retourne le dernier élément d'un tableau.
+     *
+     * @template T
+     *
+     * @param array<T> $array le tableau
+     * @return T le dernier élément du tableau
+     */
     public static function last(array &$array)
     {
         return $array[array_key_last($array)];

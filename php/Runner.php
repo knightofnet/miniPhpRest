@@ -28,6 +28,9 @@ class Runner
             $routes = self::addDebugRoutes($routes);
         }
 
+        self::verifyConfig($config);
+        define('MINIPHPREST_SERVER_ROOT_PATH', $config->getServerRootPath());
+
         $response = null;
         try {
             $request = Runner::getRequest($routes);
@@ -193,6 +196,7 @@ class Runner
 
 
         $instance->setRequest($route);
+        $instance->initialize();
         /** @var ResponseObject $responseHttp */
         $responseHttp = call_user_func_array([$instance, $route->getMethod()], $route->getMethodArgsTyped());
 
@@ -395,6 +399,13 @@ class Runner
 
         return $routes;
 
+    }
+
+    private static function verifyConfig(MiniPhpRestConfig $config)
+    {
+        if (empty($config->getServerRootPath())) {
+            throw new \Exception('Server root path not defined in MiniPhpRestConfig');
+        }
     }
 
 }
