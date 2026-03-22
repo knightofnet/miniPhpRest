@@ -53,7 +53,7 @@ class ExecuteRouteAdditionalArgumentsTest extends TestCase
         Runner::executeRoute($request);
     }
 
-    public function test_execute_route_fails_when_argument_type_does_not_match(): void
+    public function test_execute_route_fails_when_argument_type_does_not_match_debug_off(): void
     {
         $this->expectException(\Exception::class);
         $this->expectExceptionMessage('Method not found');
@@ -63,6 +63,21 @@ class ExecuteRouteAdditionalArgumentsTest extends TestCase
             ->setMethod('oneInt')
             ->setMethodArgs(['abc']);
 
+
         Runner::executeRoute($request);
+    }
+
+    public function test_execute_route_fails_when_argument_type_does_not_match_debug_on(): void
+    {
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Argument 1 is not compatible with its type');
+
+        $request = (new RequestObject())
+            ->setController(TestArgumentsController::class)
+            ->setMethod('oneInt')
+            ->setMethodArgs(['abc']);
+
+
+        Runner::executeRoute($request, true);
     }
 }
