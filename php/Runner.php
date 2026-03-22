@@ -277,7 +277,6 @@ class Runner
 
     private static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
     {
-        //var_dump($classFilePath);
 
         $toReplace = self::$config->getServerRootPath() . $appClassFolderFound;
         if (StringUtils::str_ends_with($toReplace, '/')) {
@@ -287,6 +286,7 @@ class Runner
         $classFilePath = str_replace($toReplace, $appNamespace, $pclassFilePath);
         $classFilePath = str_replace('/', '\\', $classFilePath);
         $classFilePath = str_replace('.php', '', $classFilePath);
+
         return $classFilePath;
     }
 
@@ -346,7 +346,7 @@ class Runner
             }
 
             $paramTypeName = $paramType->getName();
-            $isArgValueOk = self::validateTypeValue($paramTypeName, $arg);
+            $isArgValueOk = self::validateParamTypeValue($paramTypeName, $arg);
             if (!$isArgValueOk) {
                 return ($i + 1) * 10 + 3;
             }
@@ -449,32 +449,42 @@ class Runner
         }
     }
 
-    private static function validateTypeValue(string $paramTypeName, $arg): bool
+    /**
+     * Valide qu'une valeur est compatible avec un type donné (int, float, bool, string)
+     *
+     * @param string $typeName
+     * @param mixed $value
+     * @return bool
+     */
+    public static function validateParamTypeValue(string $typeName, $value): bool
     {
 
-        if ($paramTypeName === 'int') {
-            if (!preg_match("/^\d+$/", $arg)) {
+        if ($typeName === 'int') {
+            if (!preg_match("/^-?\d+$/", $value)) {
                 return false;
             }
             return true;
         }
 
-        if ($paramTypeName === 'float') {
-            if (!preg_match("/^\d+(\.\d+)?$/", $arg)) {
+        if ($typeName === 'float') {
+
+            if (!filter_var($value, FILTER_VALIDATE_FLOAT)) {}
+
+            if (!preg_match("/^-?\d+(\.\d+)?$/", $value)) {
                 return false;
             }
             return true;
         }
 
-        if ($paramTypeName === 'bool') {
-            if (!preg_match("/^true|false|0|1$/", $arg)) {
+        if ($typeName === 'bool') {
+            if (!preg_match("/^(true|false|0|1)$/", $value)) {
                 return false;
             }
             return true;
         }
 
-        if ($paramTypeName === 'string') {
-            if (!is_string($arg)) {
+        if ($typeName === 'string') {
+            if (!is_string($value)) {
                 return false;
             }
             return true;
