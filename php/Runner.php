@@ -37,7 +37,7 @@ class Runner
             if ($request === null) {
                 $response = ResponseObject::ResultCodeHttp(404);
             } else {
-                $response = Runner::executeRoute($request);
+                $response = Runner::executeRoute($request, self::$config->isDebug());
             }
         } catch (RouteFormatUnknownException $e) {
 
@@ -132,7 +132,7 @@ class Runner
         return null;
     }
 
-    public static function executeRoute(RequestObject $route): ResponseObject
+    public static function executeRoute(RequestObject $route, bool $isDebugMode = false): ResponseObject
     {
 
         /** @var string $classPath Classpath to instance */
@@ -179,10 +179,47 @@ class Runner
             throw new \Exception('Class not found or not instance of AbstractController');
         }
 
-        $isPhpMethodValid = Runner::isMethodValids($instance, $route->getMethod(), $route);
-        if (!$isPhpMethodValid) {
+        $validateMethodSigRetCode = Runner::validateInstanceMethodSignature($instance, $route->getMethod(), $route);
+        if ($validateMethodSigRetCode != 1) {
             http_response_code(404);
-            throw new \Exception('Method not found');
+            $message = 'Method not found';
+            if ($isDebugMode) {
+
+                switch ($validateMethodSigRetCode) {
+                    case 0:
+                        $message = 'Method not found';
+                        break;
+                    case 3:
+                        $message = 'Argument count does not match';
+                        break;
+                    case 4:
+                        $message = 'Method return type is not ResponseObject';
+                        break;
+                    default:
+                        if ($validateMethodSigRetCode >= 10) {
+                            $argIndex = floor($validateMethodSigRetCode / 10) - 1;
+                            $errorType = $validateMethodSigRetCode % 10;
+                            switch ($errorType) {
+                                case 1:
+                                    $message = "Argument " . ($argIndex + 1) . " has no type";
+                                    break;
+                                case 2:
+                                    $message = "Argument " . ($argIndex + 1) . " is no a builtin type";
+                                    break;
+                                case 3:
+                                    $message = "Argument " . ($argIndex + 1) . " is not compatible with its type";
+                                    break;
+
+                            }
+
+                        }
+                        break;
+
+
+                }
+
+            }
+            throw new \Exception($message);
         }
 
         Runner::hydrateRouteTypedArgs($route, $instance);
@@ -204,7 +241,8 @@ class Runner
 
     }
 
-    private static function findClass($className, $folderApp = "/app/")
+    private
+    static function findClass($className, $folderApp = "/app/")
     {
 
         $res = scandir(self::$config->getServerRootPath() . $folderApp);
@@ -235,7 +273,8 @@ class Runner
         return null;
     }
 
-    private static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
+    private
+    static function filePathToNamespace($pclassFilePath, $appClassFolderFound, $appNamespace)
     {
         //var_dump($classFilePath);
 
@@ -250,11 +289,26 @@ class Runner
         return $classFilePath;
     }
 
-    private static function isMethodValids($instance, string $methodName, RequestObject $route): bool
+    /**
+     * Indique si la méthode existe, si le nombre d'arguments correspond et si les types d'arguments sont corrects
+     * @param $instance l'instance du controller
+     * @param string $methodName le nom de la méthode
+     * @param RequestObject $route la route demandée
+     * @return int un code retour indiquant si la validation a réussi ou le type d'erreur rencontré :
+     * 0 : la méthode n'existe pas
+     * 1 : la validation a réussi
+     * 3 : le nombre d'arguments ne correspond pas
+     * 4 : le type de retour de la méthode n'est pas ResponseObject
+     * 10n+1 : le n-ième argument n'a pas de type
+     * 10n+2 : le n-ième argument a un type non builtin
+     * 10n+3 : la valeur de l'argument n'est pas compatible avec son type (ex: "abc" pour un int)
+     *
+     */
+    private static function validateInstanceMethodSignature($instance, string $methodName, RequestObject $route): int
     {
 
         if (!method_exists($instance, $methodName)) {
-            return false;
+            return 0;
         }
 
         $reflection = new \ReflectionMethod($instance, $methodName);
@@ -264,14 +318,13 @@ class Runner
         $nbArgs = count($args);
 
         if ($nbParams !== $nbArgs) {
-
-            return false;
+            return 3;
         }
 
 
         if ($reflection->getReturnType() == null
             || $reflection->getReturnType()->getName() !== Runner::defaultNamespace . '\core\ResponseObject') {
-            return false;
+            return 4;
         }
 
         for ($i = 0; $i < count($params); $i++) {
@@ -282,51 +335,28 @@ class Runner
 
             if ($paramType == null) {
                 // no type
-                return false;
+                return ($i + 1) * 10 + 1;
+
             }
 
             if (!$paramType->isBuiltin()) {
                 // only builtin type
-                return false;
+                return ($i + 1) * 10 + 2;
             }
 
             $paramTypeName = $paramType->getName();
-            if ($paramTypeName === 'int') {
-
-                try {
-                    $intVal = intval($arg);
-                } catch (\Exception $e) {
-                    return false;
-                }
-
-            } elseif ($paramTypeName === 'float') {
-                try {
-                    $floatVal = floatval($arg);
-                } catch (\Exception $e) {
-                    return false;
-                }
-
-            } elseif ($paramTypeName === 'bool') {
-                try {
-                    $boolVal = boolval($arg);
-                } catch (\Exception $e) {
-                    return false;
-                }
-
-            } elseif ($paramTypeName === 'string') {
-                if (!is_string($arg)) {
-                    return false;
-                }
-
-            } else {
-                return false;
+            $isArgValueOk = self::validateTypeValue($paramTypeName, $arg);
+            if (!$isArgValueOk) {
+                return ($i + 1) * 10 + 3;
             }
+
         }
 
-        return true;
+        return 1;
     }
 
-    private static function hydrateRouteTypedArgs(RequestObject $route, $instance): void
+    private
+    static function hydrateRouteTypedArgs(RequestObject $route, $instance): void
     {
         if (!method_exists($instance, $route->getMethod())) {
             throw new \Exception('Method not found');
@@ -360,7 +390,8 @@ class Runner
         }
     }
 
-    public static function doResponse(ResponseObject $responseObject)
+    public
+    static function doResponse(ResponseObject $responseObject)
     {
         http_response_code($responseObject->getStatusCode());
 
@@ -374,7 +405,7 @@ class Runner
     }
 
 
-    private static function extractClassAndMethodFromRoute($route)
+    private  static function extractClassAndMethodFromRoute($route)
     {
 
         if (is_string($route)) {
@@ -405,6 +436,41 @@ class Runner
         if (empty($config->getServerRootPath())) {
             throw new \Exception('Server root path not defined in MiniPhpRestConfig');
         }
+    }
+
+    private static function validateTypeValue(string $paramTypeName, $arg): bool
+    {
+
+        if ($paramTypeName === 'int') {
+            if (!preg_match("/^\d+$/", $arg)) {
+                return false;
+            }
+            return true;
+        }
+
+        if ($paramTypeName === 'float') {
+            if (!preg_match("/^\d+(\.\d+)?$/", $arg)) {
+                return false;
+            }
+            return true;
+        }
+
+        if ($paramTypeName === 'bool') {
+            if (!preg_match("/^true|false|0|1$/", $arg)) {
+                return false;
+            }
+            return true;
+        }
+
+        if ($paramTypeName === 'string') {
+            if (!is_string($arg)) {
+                return false;
+            }
+            return true;
+        }
+
+        return false;
+
     }
 
 }
