@@ -16,7 +16,13 @@
     "ext-pdo": "*",
     "ext-http": "*"
   },
+  "require-dev": {
+    "phpunit/phpunit": "^9.0"
+  },
   "autoload": {
     "psr-4": {"MiniPhpRest\\": "php/"}
+  },
+  "autoload-dev": {
+    "psr-4": {"MiniPhpRest\\Tests\\": "tests/"}
   }
 }
