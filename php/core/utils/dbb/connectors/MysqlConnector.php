@@ -20,6 +20,9 @@ class MysqlConnector extends DbbConnector
 
     private String $password;
 
+    /**
+     * @param array $config les propriétées de la base de données : host, dbname, user, password, charset (optionnel)
+     */
     public function __construct(array $config)
     {
         $this->host = $config['host'] ?? 'localhost';

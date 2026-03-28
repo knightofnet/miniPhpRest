@@ -2,6 +2,9 @@
 
 namespace MiniPhpRest\core\utils\dbb;
 
+use MiniPhpRest\core\utils\dbb\res\OrderInsertResult;
+use MiniPhpRest\core\utils\lang\ArrayUtils;
+
 class DbbUtils
 {
     private static ?\Throwable $lastException = null;
@@ -43,12 +46,16 @@ class DbbUtils
      *
      * @param string $sql
      * @param array $paramsCall
-     * @param IHaveRowMapper $obj Object implementing setIdObj()
+     * @param IntEntityId $obj Object implementing setIdObj()
      * @param \PDO|null $connection
      * @return bool
      * @throws \Throwable
+     *
+     *
+     * @deprecated
+     *
      */
-    public static function executeOrderInsert(string $sql, array $paramsCall, IHaveRowMapper $obj, ?\PDO $connection = null): bool
+    public static function executeOrderInsert(string $sql, array $paramsCall, IntEntityId $obj, ?\PDO $connection = null): bool
     {
         $connection = self::connectionOrSelfConnection($connection);
         if ($connection === null) {
@@ -75,12 +82,58 @@ class DbbUtils
      *
      * @param string $sql
      * @param array $paramsCall
+     * @param \PDO|null $connection
+     * @return OrderInsertResult
+     * @throws \Throwable
+
+     *
+     */
+    public static function executeOrderInsertAndReturnRes(string $sql, array $paramsCall, ?\PDO $connection = null): OrderInsertResult
+    {
+        $connection = self::connectionOrSelfConnection($connection);
+        if ($connection === null) {
+            throw new \RuntimeException('No PDO connection available (check setNewConnectionClosure or pass a connection).');
+        }
+
+        return DbbUtils::executeOrder(
+            $connection,
+            $sql,
+            $paramsCall,
+            function (?\PDOStatement $stmt, ?\Throwable $exception) use ($connection) {
+
+                $resObj = new OrderInsertResult();
+                if ($exception !== null) {
+                    $resObj->setIsSuccess(false);
+                    $resObj->setException($exception);
+
+                    return $resObj;
+                }
+
+                if ($stmt && $stmt->rowCount() > 0) {
+
+                    $resObj->setIsSuccess(true);
+                    $lastInsertId = $connection->lastInsertId();
+                    $resObj->setLastInsertId($lastInsertId);
+
+
+                }
+
+                return $resObj;
+            }
+        );
+    }
+
+    /**
+     * Execute an insert and set the id on the provided object if insert succeeded.
+     *
+     * @param string $sql
+     * @param array $paramsCall
      * @param IHaveRowMapper $obj Object implementing setIdObj()
      * @param \PDO|null $connection
      * @return bool
      * @throws \Throwable
      */
-    public static function executeOrderUpdate(string $sql, array $paramsCall, IHaveRowMapper $obj, ?\PDO $connection = null): bool
+    public static function executeOrderUpdate(string $sql, array $paramsCall, ?\PDO $connection = null): bool
     {
         $connection = self::connectionOrSelfConnection($connection);
         if ($connection === null) {
@@ -91,7 +144,7 @@ class DbbUtils
 
             $sql,
             $paramsCall,
-           $connection
+            $connection
         );
     }
 
@@ -177,6 +230,39 @@ class DbbUtils
         );
     }
 
+    /**
+     * Execute a database order with count(*) in cols
+     *
+     * @return int result of count(*) or -1 if error
+     */
+    public static function executeOrderForCounting(string $partSqlStartInFrom, array $paramsCall, \PDO $connection = null): int
+    {
+        $connection = self::connectionOrSelfConnection($connection);
+        if ($connection === null) {
+            throw new \RuntimeException('No PDO connection available (check setNewConnectionClosure or pass a connection).');
+        }
+
+        return DbbUtils::executeOrder(
+            $connection,
+            $partSqlStartInFrom,
+            $paramsCall,
+            function (?\PDOStatement $stmt, ?\Throwable $exception) {
+                if ($exception || !$stmt) {
+                    return -1;
+                }
+
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if ($row === false) {
+                    return -1;
+                }
+
+                return intval(ArrayUtils::first($row));
+
+
+            }
+        );
+    }
+
 
     /**
      * Execute a database order with prepared statements and parameter binding.
@@ -198,7 +284,7 @@ class DbbUtils
             $stmt = $pdoConnection->prepare($sql);
             if ($stmt === false) {
 
-                throw new \RuntimeException("Prepared statement failed for SQL: " . $sql.
+                throw new \RuntimeException("Prepared statement failed for SQL: " . $sql .
                     " Error info: " . implode(' | ', $pdoConnection->errorInfo()));
             }
 

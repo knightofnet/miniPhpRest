@@ -86,7 +86,7 @@ class StringUtils
     }
 
     /**
-     * Convertit une chaîne en majuscules
+     * Convertit une chaîne en majuscules. Alias de strtoupper($str)
      *
      * @param string $str La chaîne à convertir.
      * @return string La chaîne convertie en majuscules.
@@ -132,7 +132,7 @@ class StringUtils
      * @param string $subject La chaîne dans laquelle chercher et remplacer.
      * @return string La chaîne avec la première occurrence de $search remplacée par $replace.
      */
-    public static function str_replace_first(string $search, string $replace, string $subject)
+    public static function str_replace_first(string $search, string $replace, string $subject): string
     {
         $pos = strpos($subject, $search);
         if ($pos !== false) {
@@ -166,7 +166,7 @@ class StringUtils
      * @param string $text La chaîne dont il faut supprimer les accents.
      * @return string La chaîne sans accents.
      */
-    public static function substrAccents(string $text)
+    public static function substrAccents(string $text): string
     {
         $accents = array(
             'À', 'Á', 'Â', 'Ã', 'Ä', 'Å', 'Æ', 'Ç', 'È', 'É', 'Ê', 'Ë', 'Ì', 'Í', 'Î', 'Ï', 'Ð', 'Ñ', 'Ò', 'Ó', 'Ô', 'Õ', 'Ö', 'Ø', 'Ù', 'Ú', 'Û', 'Ü', 'Ý', 'Þ', 'ß', 'à', 'á', 'â', 'ã', 'ä', 'å', 'æ', 'ç', 'è', 'é', 'ê', 'ë', 'ì', 'í', 'î', 'ï', 'ð', 'ñ', 'ò', 'ó', 'ô', 'õ', 'ö', 'ø', 'ù', 'ú', 'û', 'ü', 'ý', 'þ', 'ÿ'
@@ -187,7 +187,8 @@ class StringUtils
      * @return string La chaîne chiffrée.
      * @throws \Exception Si le chiffrement échoue.
      */
-    public static function encryptWithXor(string $string, string $key) {
+    public static function encryptWithXor(string $string, string $key): string
+    {
         $iv = random_bytes(16);
         $encryptedString = openssl_encrypt($string, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
         return base64_encode($iv . $encryptedString);
@@ -200,7 +201,8 @@ class StringUtils
      * @param string $key La clé à utiliser pour le déchiffrement.
      * @return string La chaîne déchiffrée.
      */
-    public static function decryptWithXor(string $encryptedString, string $key) {
+    public static function decryptWithXor(string $encryptedString, string $key): string
+    {
         $data = base64_decode($encryptedString);
         $iv = substr($data, 0, 16);
         $encryptedString = substr($data, 16);

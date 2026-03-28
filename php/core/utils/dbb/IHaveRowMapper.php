@@ -26,5 +26,5 @@ interface IHaveRowMapper
      */
     function getTableName(): string;
 
-    function setIdObj(int $id): IHaveRowMapper;
+
 }

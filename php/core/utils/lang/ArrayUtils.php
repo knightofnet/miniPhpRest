@@ -297,4 +297,46 @@ class ArrayUtils
         return $retArray;
     }
 
+    /**
+     * Filtre un tableau en incluant ou excluant des éléments basés sur leurs clés.
+     * Si $includedKeys est fourni, seuls les éléments avec ces clés seront inclus
+     * dans le résultat. Si $excludeKeys est fourni, les éléments avec ces clés
+     * seront exclus du résultat. Si les deux sont fournis, les éléments avec les
+     * clés dans $excludeKeys seront exclus du résultat final même s'ils sont
+     * également présents dans $includedKeys.
+     *
+     * @param array $sourceArray le tableau à filtrer
+     * @param array|null $includedKeys un tableau contenant les clés à inclure. Peut être null
+     * @param array|null $excludeKeys un tableau contenant les clés à exclure. Peut être null
+     * @return array le tableau filtré
+     */
+    public static function keysFilter(array $sourceArray, ?array $includedKeys, ?array $excludeKeys): array
+    {
+        if ($includedKeys === null && $excludeKeys === null) {
+            return $sourceArray;
+        }
+
+        $retArray = [];
+        if ($includedKeys !== null) {
+            foreach ($includedKeys as $key) {
+                if (array_key_exists($key, $sourceArray)) {
+                    $retArray[$key] = $sourceArray[$key];
+                }
+            }
+        } else {
+            $retArray = $sourceArray;
+        }
+
+        if ($excludeKeys !== null) {
+            foreach ($excludeKeys as $key) {
+                if (array_key_exists($key, $retArray)) {
+                    unset($retArray[$key]);
+                }
+            }
+        }
+
+        return $retArray;
+    }
+
+
 }
