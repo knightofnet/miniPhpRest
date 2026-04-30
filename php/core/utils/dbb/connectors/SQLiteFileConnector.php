@@ -12,7 +12,7 @@ class SQLiteFileConnector extends DbbConnector
      */
     private $filePathOnServer;
 
-    public function __construct($filePathOnServer)
+    public function __construct(string $filePathOnServer)
     {
 
         if (!file_exists($filePathOnServer)) {

@@ -4,12 +4,24 @@ namespace MiniPhpRest;
 
 use MiniPhpRest\app\debug\DebugController;
 use MiniPhpRest\core\AbstractController;
+use MiniPhpRest\core\DependencyInjectable;
 use MiniPhpRest\core\exception\RouteFormatUnknownException;
+use MiniPhpRest\core\FrameworkContext;
 use MiniPhpRest\core\MiniPhpRestConfig;
 use MiniPhpRest\core\RequestObject;
 use MiniPhpRest\core\ResponseObject;
+use MiniPhpRest\core\utils\dbb\AbstractDbbServices;
+use MiniPhpRest\core\utils\FileUtils;
 use MiniPhpRest\core\utils\lang\StringUtils;
+use MiniPhpRest\core\utils\LoggerSingleton;
 use MiniPhpRest\core\utils\ResponseUtils;
+use MiniPhpRest\core\utils\dependencyloader;
+use MiniPhpRest\core\utils\SingletonStore;
+use Monolog\Formatter\JsonFormatter;
+use Monolog\Handler\RotatingFileHandler;
+use Monolog\Logger;
+use Monolog\Processor\IntrospectionProcessor;
+use Psr\Log\LoggerInterface;
 
 class Runner
 {
@@ -17,6 +29,11 @@ class Runner
     private const defaultNamespace = "MiniPhpRest";
 
     private static MiniPhpRestConfig $config;
+
+    private static FrameworkContext $frameworkContext;
+
+    /** @var LoggerInterface Logger */
+    private static LoggerInterface $logger;
 
     public static function followRoute($routes, MiniPhpRestConfig $config): ResponseObject
     {
@@ -31,12 +48,22 @@ class Runner
         self::verifyConfig($config);
         define('MINIPHPREST_SERVER_ROOT_PATH', $config->getServerRootPath());
 
+        self::initCommonLogger($config);
+
+        self::initFrameworkContext($config);
+
+        self::runEarlyStageFunction($config);
 
         $response = null;
         try {
+
+            self::$logger->info("Start routing", ['isDebug' => $config->isDebug()]);
+
             $request = Runner::getRequest($routes);
             if ($request === null) {
+                self::$logger->notice("followRoute : no matched route find. Return 404");
                 $response = ResponseObject::ResultCodeHttp(404);
+
             } else {
                 $response = Runner::executeRoute($request, self::$config->isDebug());
             }
@@ -57,6 +84,9 @@ class Runner
 
         } catch (\Throwable $e) {
             //var_dump($e);
+
+            self::$logger->alert("Exception catched during routing", ['exceptionMessage' => $e->getMessage(), 'exceptionTrace' => $e->getTraceAsString()]);
+
             if (self::$config->isDebug()) {
 
                 $response = ResponseUtils::getDefaultResponseArray(
@@ -76,6 +106,7 @@ class Runner
 
         }
 
+        self::$logger->info("followRoute : end routing", ['responseStatusCode' => $response->getStatusCode()]);
         Runner::doResponse($response);
 
         return $response;
@@ -85,12 +116,19 @@ class Runner
     private static function getRequest($routes)
     {
         $method = self::$config->getServerParamObject()->getRequestMethod();
+        self::$logger->debug("getRequest", ['method' => $method]);
+
         $uri = self::$config->getServerParamObject()->getRequestURI();
+        self::$logger->debug("getRequest", ['requestURI' => $uri]);
+
         $uri = explode('?', $uri)[0];
         $uri = rtrim($uri, '/');
         $uri = explode('/', $uri);
+
+        self::$logger->debug("getRequest", ['beforeSlice' => $uri]);
         $uri = array_slice($uri, self::$config->getUriSliceOffset());
         $uri = '/' . implode('/', $uri);
+        self::$logger->debug("getRequest", ['afterSlice' => $uri]);
 
         $route = Runner::buildRequestFromRoute($uri, $routes, $method);
 
@@ -110,6 +148,7 @@ class Runner
     {
         if (isset($routes[$method][$uri])) {
             list($controller, $classMethod) = self::extractClassAndMethodFromRoute($routes[$method][$uri]);
+            self::$logger->debug("buildRequestFromRoute", ['routeType' => 'match exact', 'controller' => $controller, 'classMethod' => $classMethod]);
             return (new RequestObject())
                 ->setHttpMethod($method)
                 ->setUri($uri)
@@ -125,16 +164,20 @@ class Runner
                 list($controller, $classMethod) = self::extractClassAndMethodFromRoute($controllerAndMethod);
                 $argsFromMatches = array_slice($matches, 1);
 
+                $controllerMethodArgs = array_map(fn($match) => $match[0], $argsFromMatches);
+                self::$logger->debug("buildRequestFromRoute", ['routeType' => 'match regex', 'controller' => $controller, 'classMethod' => $classMethod, 'args' => $controllerMethodArgs]);
+
                 return (new RequestObject())
                     ->setHttpMethod($method)
                     ->setUri($uri)
                     ->setRegexMatched($routeRegex)
                     ->setController($controller)
                     ->setMethod($classMethod)
-                    ->setMethodArgs(array_map(fn($match) => $match[0], $argsFromMatches));
+                    ->setMethodArgs($controllerMethodArgs);
             }
         }
 
+        self::$logger->notice("buildRequestFromRoute : no matched route find");
         return null;
     }
 
@@ -162,6 +205,7 @@ class Runner
 
                 $classFilePath = Runner::findClass($route->getController(), $appClassFolder);
                 if (!empty($classFilePath)) {
+                    self::$logger->debug("executeRoute : NOT isControllerFullClassPath", ['classFilePath' => $classFilePath]);
                     $appClassFolderFound = $appClassFolder;
                     break;
                 }
@@ -172,8 +216,10 @@ class Runner
                 throw new \Exception('Class file not found');
             }
             $classPath = Runner::filePathToNamespace($classFilePath, $appClassFolderFound, $appNamespace);
+            self::$logger->debug("executeRoute : NOT isControllerFullClassPath", ['classPath' => $classPath]);
         } else {
             $classPath = $route->getController();
+            self::$logger->debug("executeRoute : isControllerFullClassPath", ['classPath' => $classPath]);
         }
         if (empty($classPath)) {
             throw new \Exception('Class not found');
@@ -189,6 +235,7 @@ class Runner
         if ($validateMethodSigRetCode != 1) {
             http_response_code(404);
             $message = 'Method not found';
+
             if ($isDebugMode) {
 
                 switch ($validateMethodSigRetCode) {
@@ -225,6 +272,8 @@ class Runner
                 }
 
             }
+
+            self::$logger->warning("executeRoute : validateInstanceMethodSignature failed", ['validateMethodSigRetCode' => $validateMethodSigRetCode, 'message' => $message]);
             throw new \Exception($message);
         }
 
@@ -237,11 +286,17 @@ class Runner
             $route->setBodySource("json");
         }
 
+        self::prepareInjectablesDependencies(self::$config);
+        self::executeBeforeInitController(self::$config, self::$frameworkContext);
 
+        $instance->setFrameworkContext(self::$frameworkContext);
         $instance->setRequest($route);
         $instance->initialize();
+
+        self::$logger->info("executeRoute : executing target method", ['class' => $classPath, 'method' => $route->getMethod(), 'args' => $route->getMethodArgsTyped()]);
         /** @var ResponseObject $responseHttp */
         $responseHttp = call_user_func_array([$instance, $route->getMethod()], $route->getMethodArgsTyped());
+        self::$logger->debug("executeRoute : AFTER executing target method");
 
         return $responseHttp;
 
@@ -404,6 +459,7 @@ class Runner
         if (null != $responseObject->getAction()) {
             call_user_func($responseObject->getAction());
         }
+
     }
 
 
@@ -477,9 +533,6 @@ class Runner
 
         if ($typeName === 'float') {
 
-            if (!filter_var($value, FILTER_VALIDATE_FLOAT)) {
-            }
-
             if (!preg_match("/^-?\d+(\.\d+)?$/", $value)) {
                 return false;
             }
@@ -503,5 +556,100 @@ class Runner
         return false;
 
     }
+
+    private static function initCommonLogger(MiniPhpRestConfig $config)
+    {
+        // Initialise le logger du framework
+        $loggerFilePath = $config->getLoggerConfig()->getFwkLogFilepath();
+        if (StringUtils::isNullOrEmpty($loggerFilePath)) {
+            $loggerFilePath = FileUtils::join($config->getServerRootPath() , '/miniphprest_log.log');
+        }
+        $logger = self::initLogger('miniphprest', $loggerFilePath, $config->getLoggerConfig()->getFwkLogLevel());
+        $logger->info('MiniPhpRest started');
+
+        self::$logger = $logger;
+
+        // Initialise le logger applicatif
+        $appLoggerFilePath = $config->getLoggerConfig()->getAppLogFilepath();
+        if (StringUtils::isNullOrEmpty($appLoggerFilePath)) {
+            $appLoggerFilePath = FileUtils::join($config->getServerRootPath() ,  'miniphprest_app_log.log');
+        }
+        $appLogger = self::initLogger('app', $appLoggerFilePath, $config->getLoggerConfig()->getAppLogLevel());
+
+        AbstractController::setLogger($appLogger);
+        LoggerSingleton::set($appLogger);
+    }
+
+    private static function initLogger(string $loggerName, string $loggerFilePath, int $logLevel = Logger::INFO): LoggerInterface
+    {
+
+
+        $isJson = StringUtils::str_ends_with($loggerFilePath, '.json');
+
+
+        $handler = new RotatingFileHandler(
+            $loggerFilePath,
+            10,
+            $logLevel
+        );
+        if ($isJson) {
+            $handler->setFormatter(new JsonFormatter());
+        }
+
+        $logger = new Logger($loggerName);
+        $logger->pushHandler(
+            $handler
+        );
+        $logger->pushProcessor(new IntrospectionProcessor());
+
+
+        return $logger;
+    }
+
+    private static function initFrameworkContext(MiniPhpRestConfig $config)
+    {
+
+        self::$frameworkContext = $config->getFrameworkContextImpl() ?? new FrameworkContext();
+    }
+
+    private static function runEarlyStageFunction(MiniPhpRestConfig $config)
+    {
+        if ($config->getEarlyStageFunction() != null) {
+            try {
+                call_user_func($config->getEarlyStageFunction(), $config, self::$frameworkContext, LoggerSingleton::get());
+            } catch (\Exception $e) {
+                self::$logger->error("Exception catched during early stage function execution", ['exceptionMessage' => $e->getMessage(), 'exceptionTrace' => $e->getTraceAsString()]);
+                throw $e;
+            }
+        }
+    }
+
+    private static function prepareInjectablesDependencies(MiniPhpRestConfig $config)
+    {
+
+
+       AbstractDbbServices::setConnection(self::$frameworkContext->getMainConnection());
+
+       SingletonStore::buildAndRegisterDependencies(self::$config->getDependencies());
+
+
+
+
+
+
+    }
+
+    private static function executeBeforeInitController(MiniPhpRestConfig $config, FrameworkContext $frameworkContext)
+    {
+        if ($config->getBeforeInitializeControllerFunction() != null) {
+            try {
+                call_user_func($config->getBeforeInitializeControllerFunction(), $config, $frameworkContext, LoggerSingleton::get());
+            } catch (\Exception $e) {
+                self::$logger->error("Exception catched during executeBeforeInitController execution", ['exceptionMessage' => $e->getMessage(), 'exceptionTrace' => $e->getTraceAsString()]);
+                throw $e;
+            }
+        }
+    }
+
 
 }

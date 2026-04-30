@@ -3,27 +3,58 @@
 namespace MiniPhpRest\core\utils\dbb\connectors;
 
 
-
 use http\Exception\InvalidArgumentException;
+use MiniPhpRest\core\utils\dbb\connectors\configurer\MysqlConfigurer;
 
 class MysqlConnector extends DbbConnector
 {
 
 
-    private String $host;
+    private string $host;
 
-    private String $dbname;
+    private string $dbname;
 
-    private String $charset = 'utf8';
+    private string $charset = 'utf8';
 
-    private String $user;
+    private string $user;
 
-    private String $password;
+    private string $password;
 
     /**
-     * @param array $config les propriétées de la base de données : host, dbname, user, password, charset (optionnel)
+     * @param array|MysqlConfigurer $config les propriétées de la base de données : host, dbname, user, password, charset (optionnel)
      */
-    public function __construct(array $config)
+    public function __construct($config)
+    {
+
+        if (is_array($config)) {
+            if (!isset($config['host']) || !isset($config['dbname']) || !isset($config['user']) || !isset($config['password'])) {
+                throw new InvalidArgumentException("Missing configuration array fields (host, dbname, charset, user, password) for MysqlConnector");
+            }
+            $this->loadWithArrayConf($config);
+        } elseif ($config instanceof MysqlConfigurer) {
+            $this->loadWithConfigurer($config);
+        }
+
+
+    }
+
+    public function connect(): \PDO
+    {
+
+        $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname . ';charset=' . $this->charset;
+
+        $connection = new \PDO($dsn, $this->user, $this->password);
+
+        $connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+        return $connection;
+    }
+
+    /**
+     * @param array $config
+     * @return void
+     */
+    private function loadWithArrayConf(array $config): void
     {
         $this->host = $config['host'] ?? 'localhost';
 
@@ -37,15 +68,19 @@ class MysqlConnector extends DbbConnector
         $this->password = $config['password'] ?? '';
     }
 
-    public function connect(): \PDO
+    /**
+     * @param MysqlConfigurer $config
+     * @return void
+     */
+    private function loadWithConfigurer(MysqlConfigurer $config)
     {
-
-        $dsn = 'mysql:host=' . $this->host . ';dbname=' . $this->dbname  . ';charset=' . $this->charset;
-
-        $connection = new \PDO($dsn, $this->user, $this->password);
-
-        $connection->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
-
-        return $connection;
+        $this->host = $config->getHost() ?? 'localhost';
+        if (empty($config->getDatabase())) {
+            throw new InvalidArgumentException("Le nom de la base de données (dbname) est requis pour la connexion MySQL.");
+        }
+        $this->dbname = $config->getDatabase();
+        $this->charset = $config->getCharset() ?? 'utf8';
+        $this->user = $config->getUser() ?? '';
+        $this->password = $config->getPassword() ?? '';
     }
 }

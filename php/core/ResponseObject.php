@@ -17,12 +17,17 @@ class ResponseObject
     private ?ClosureAlias $action = null;
 
 
-    public static function ResultsObjectToJson($object, int $codeHttp = 200): ResponseObject
+    public static function ResultsObjectToJson($object, int $codeHttp = 200, $headers = []): ResponseObject
     {
 
         $rep = new ResponseObject();
         $rep->statusCode = $codeHttp;
         $rep->headers[] = 'Content-Type: application/json; charset=utf-8';
+        if (is_array($headers) && count($headers) > 0) {
+            foreach ($headers as $h) {
+                $rep->headers[] = $h;
+            }
+        }
         $rep->action = function () use ($object) {
             echo json_encode(StringUtils::utf8ize($object), JSON_UNESCAPED_UNICODE);
         };

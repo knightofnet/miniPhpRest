@@ -10,7 +10,7 @@ class StringUtils
     public const NEW_LINE_PATTERN = "/\r\n|\n|\r/";
 
     public const ALPHA_NUM_CARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    public const ALPHA_NUM_CAR_EXTENDED = self::ALPHA_NUM_CARS. '&()-_@)#{[]+=}*;:/!';
+    public const ALPHA_NUM_CAR_EXTENDED = self::ALPHA_NUM_CARS . '&()-_@)#{[]+=}*;:/!';
     public const EMPTY = '';
 
 
@@ -216,15 +216,48 @@ class StringUtils
      * @param array $charsToRemove Les caractères à supprimer.
      * @return string La chaîne sans les caractères supprimés.
      */
-    public static function removeChars(string $string, array $charsToRemove) : string
+    public static function removeChars(string $string, array $charsToRemove): string
     {
         foreach ($charsToRemove as $c) {
             if (strpos($string, $c) > -1) {
-                $string = str_replace($c, '',$string);
+                $string = str_replace($c, '', $string);
             }
         }
 
         return $string;
     }
+
+    /**
+     * Détermine si une variable de type string est null ou vide
+     * @param string $string la variable à tester
+     * @return bool Vrai si la chaîne est null ou vide, faux sinon.
+     */
+    public static function isNullOrEmpty(string $string): bool
+    {
+        return (!isset($string) || trim($string) === '');
+    }
+
+    /**
+     * Extrait une sous-chaîne d'une chaîne en utilisant des index de début et de fin exclusifs
+     * @param string $string
+     * @param int $startIndex
+     * @param int $excludeEndIndex
+     * @return string
+     *
+     */
+    public static function substring(string $string, int $startIndex, int $excludeEndIndex) : string
+    {
+        if ($startIndex < 0 || $excludeEndIndex < 0 || $startIndex > strlen($string) || $excludeEndIndex > strlen($string) || $startIndex > $excludeEndIndex) {
+            throw new \InvalidArgumentException("Invalid start or end index");
+        }
+
+        return substr($string, $startIndex, $excludeEndIndex - $startIndex);
+    }
+
+    public static function equalsIgnoreCase(string $strA, string $strB) : bool
+    {
+        return strcasecmp($strA, $strB) === 0;
+    }
+
 
 }

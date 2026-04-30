@@ -38,4 +38,10 @@ class FileUtils
 
     }
 
+    public static function join(string...$parts): string
+    {
+        return implode(DIRECTORY_SEPARATOR, $parts);
+
+    }
+
 }

@@ -37,6 +37,7 @@ class NominalRunTest extends TestCase
             ])->setServerParamObject(new ServerParamObject(
                 'GET', '/api/v1/movies/getAll'
             ));
+        $this->config->getLoggerConfig()->setFwkLogLevel(\Monolog\Logger::DEBUG);
         //$config->setUriSliceOffset($siteConf->getValue('miniPhpFw', 'uriSliceOffset', 2));
 
 

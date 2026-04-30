@@ -29,6 +29,29 @@ class ArrayUtils
     }
 
     /**
+     * Vérifie que tous les éléments du tableau satisfont la condition spécifiée par la fonction de rappel.
+     *
+     * @param \Closure $lambda La fonction de rappel qui prend un élément du tableau et renvoie un booléen.
+     * @param array $array Le tableau à vérifier.
+     * @return bool Renvoie true si tous les éléments satisfont la condition, false sinon.
+     * @throws \Error Si la fonction de rappel ne renvoie pas un booléen.
+     */
+    public static function all(\Closure $lambda, array $array): bool
+    {
+        foreach ($array as $elt) {
+            $resFn = call_user_func($lambda, $elt);
+            if (!is_bool($resFn)) {
+                throw new \Error("ArrayUtils::any() : le paramètre lambda doit renvoyer un booléen");
+            }
+            if (!$resFn) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Trouve le premier élément du tableau qui satisfait la condition spécifiée par la fonction de rappel.
      *
      * @template T
@@ -193,7 +216,7 @@ class ArrayUtils
      * @param array $array
      * @return string
      */
-    public static function toString($array): string
+    public static function toString(array $array): string
     {
         return json_encode($array, JSON_PRETTY_PRINT);
     }
@@ -298,6 +321,46 @@ class ArrayUtils
     }
 
     /**
+     * Applique une fonction de rappel à chaque élément d'un tableau et retourne un nouveau tableau contenant les résultats.
+     * Le tableau de retour est un tableau associatif où les clés et les valeurs sont déterminées par la fonction de
+     * rappel. La fonction de rappel doit retourner un tableau avec exactement 2 éléments : [key, value].
+     * Le premier élément du tableau retourné sera utilisé comme clé dans le tableau de retour, et le second élément
+     * sera utilisé comme valeur.
+     * @param array $array Le tableau d'entrée.
+     * @param \Closure $param La fonction de rappel à appliquer à chaque élément. Elle doit prendre un élément en paramètre et retourner la valeur transformée.
+     * @return array Un nouveau tableau contenant les résultats de l'application de la fonction de rappel à chaque élément du tableau d'entrée.
+     */
+    public static function mapForKeyValue(array $array, \Closure $param): array
+    {
+        $retArray = [];
+        foreach ($array as $elt) {
+            $return = call_user_func($param, $elt);
+            if (!is_array($return) || count($return) !== 2) {
+                throw new \Exception("mapForKeyValue : Le retour de la fonction doit être un tableau avec exactement 2 éléments : [key, value]");
+            }
+            $retArray[$return[0]] = $return[1];
+
+        }
+        return $retArray;
+    }
+
+    public static function groupBy(array $array, \Closure $param): array
+    {
+        $retArray = [];
+        foreach ($array as $elt) {
+            $key = call_user_func($param, $elt);
+            if (!is_string($key) && !is_int($key)) {
+                throw new \Exception("groupBy : Le retour de la fonction doit être une clé de type string ou int");
+            }
+            if (!array_key_exists($key, $retArray)) {
+                $retArray[$key] = [];
+            }
+            $retArray[$key][] = $elt;
+        }
+        return $retArray;
+    }
+
+    /**
      * Filtre un tableau en incluant ou excluant des éléments basés sur leurs clés.
      * Si $includedKeys est fourni, seuls les éléments avec ces clés seront inclus
      * dans le résultat. Si $excludeKeys est fourni, les éléments avec ces clés
@@ -336,6 +399,127 @@ class ArrayUtils
         }
 
         return $retArray;
+    }
+
+    /**
+     * Supprime récursivement des clés dans un tableau selon une liste de règles.
+     *
+     * Syntaxe des règles (éléments de $toRemoveList) :
+     *  - 'key'      : supprime toute clé nommée 'key' (relatif, partout).
+     *  - '/a/b'     : supprime uniquement la clé dont le chemin complet est '/a/b' (absolu).
+     *  - 'prefix*'  : supprime les éléments dont la clé / chemin commence par 'prefix'.
+     *  - '*suffix'  : supprime les éléments dont la clé / chemin se termine par 'suffix'.
+     *
+     * La comparaison d'égalité utilise une comparaison sur chaîne (stringifiés) :
+     *  - la méthode stringifie `pathToCompare` et la valeur des règles (pour égalité stricte).
+     *  - Wildcards utilisent StringUtils::str_starts_with / str_ends_with sur les chaînes.
+     *
+     * Exemples :
+     *  removeKeys(['a'=>1,'b'=>2], ['b']) => ['a'=>1]
+     *  removeKeys(['a'=>['b'=>1]], ['/a/b']) => ['a'=>[]]
+     *  removeKeys(['id'=>1,'sub'=>['id'=>2]], ['*id']) => ['sub'=>[]]
+     *
+     * @param array $sourceArray Tableau source (peut contenir des sous-tableaux).
+     * @param array $toRemoveList Liste de règles (strings).
+     *
+     * @return array Tableau filtré (nouvelle structure).
+     */
+    public static function removeKeys(array $sourceArray, array $toRemoveList): array
+    {
+        $isStringArrayRemoveList = self::all(fn($elt) => is_string($elt), $toRemoveList);
+        if (!$isStringArrayRemoveList) {
+            throw new \Exception("ArrayUtils::removeKeys() : la liste des clés à supprimer doit être un tableau de chaînes");
+        }
+        return self::removeKeys_inner($sourceArray, $toRemoveList, null);
+
+    }
+
+    private static function removeKeys_compileRemoveRules(array $toRemoveList): array
+    {
+        $toRemoveListCorrected = [];
+        foreach ($toRemoveList as $toRemoveKey) {
+
+            if (is_array($toRemoveKey)
+                && array_key_exists('path', $toRemoveKey)
+                && array_key_exists('isStartWithJoker', $toRemoveKey)
+                && array_key_exists('isEndWithJoker', $toRemoveKey)
+                && array_key_exists('isRelative', $toRemoveKey)
+            ) {
+                $toRemoveListCorrected[] = $toRemoveKey;
+                continue;
+            }
+
+            $toRemoveElt = [
+                'path' => $toRemoveKey,
+                'isStartWithJoker' => false,
+                'isEndWithJoker' => false,
+                'isRelative' => true,
+            ];
+
+
+            if (StringUtils::str_starts_with($toRemoveKey, '*')) {
+                $toRemoveElt['isStartWithJoker'] = true;
+                $toRemoveElt['path'] = substr($toRemoveElt['path'], 1);
+            } else if (StringUtils::str_ends_with($toRemoveKey, '*')) {
+                $toRemoveElt['isEndWithJoker'] = true;
+                $toRemoveElt['path'] = substr($toRemoveElt['path'], 0, -1);
+            }
+
+            if (StringUtils::str_starts_with($toRemoveElt['path'], '/')) {
+                $toRemoveElt['isRelative'] = false;
+            }
+
+            $toRemoveListCorrected[] = $toRemoveElt;
+        }
+
+        return $toRemoveListCorrected;
+    }
+
+
+    private static function removeKeys_inner(array $sourceArray, array $toRemoveList, string $currentKeyPath = null): array
+    {
+        $currentKeyPath = $currentKeyPath ?? '';
+
+        $toRemoveListCorrected = self::removeKeys_compileRemoveRules($toRemoveList);
+
+        $retArray = [];
+        foreach ($sourceArray as $key => $value) {
+            $keyPath = $currentKeyPath . '/' . $key;
+
+            $isKeep = true;
+            foreach ($toRemoveListCorrected as $toRemoveKey) {
+
+                $pathToCompare = strval($toRemoveKey['isRelative'] ? $key : $keyPath);
+                if (strval($toRemoveKey['path']) === $pathToCompare) {
+                    $isKeep = false;
+                    break;
+                }
+
+                if ($toRemoveKey['isStartWithJoker']) {
+                    if (StringUtils::str_ends_with($pathToCompare, $toRemoveKey['path'])) {
+                        $isKeep = false;
+                        break;
+                    }
+                } else if ($toRemoveKey['isEndWithJoker']) {
+                    if (StringUtils::str_starts_with($pathToCompare, $toRemoveKey['path'])) {
+                        $isKeep = false;
+                        break;
+                    }
+                }
+
+            }
+
+            if ($isKeep) {
+                $retArray[$key] = $value;
+
+                if (is_array($value)) {
+                    $retArray[$key] = self::removeKeys_inner($value, $toRemoveListCorrected, $keyPath);
+                }
+            }
+        }
+
+        return $retArray;
+
     }
 
 

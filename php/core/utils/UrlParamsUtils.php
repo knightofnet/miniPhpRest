@@ -51,7 +51,7 @@ class UrlParamsUtils
     public static function getParamString(string $paramName, ?string $defaultValue = null, ?int $maxLength = null, ?string $regexMatch = null) : ?string
     {
         if (isset($_GET[$paramName])) {
-            $strValue = strval($_GET[$paramName]);
+            $strValue = htmlspecialchars(strval($_GET[$paramName]));
 
             if ($maxLength !== null) {
                 if (strlen($strValue) > $maxLength) {

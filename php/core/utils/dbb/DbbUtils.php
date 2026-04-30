@@ -119,7 +119,7 @@ class DbbUtils
                 }
 
                 return $resObj;
-            }
+            }, true
         );
     }
 
