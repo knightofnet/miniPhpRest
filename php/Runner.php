@@ -72,13 +72,16 @@ class Runner
             if (empty($e->getMessage())) {
                 $response = ResponseObject::ResultCodeHttp($e->getStatusCode());
             } else {
-                $response = ResponseUtils::getDefaultResponseArray(
+                $responseDatas = ResponseUtils::getDefaultResponseArray(
                     false,
                     [],
                     'exception',
                     $e->getMessage()
                 );
-                $response = ResponseObject::ResultsObjectToJson($response, $e->getStatusCode());
+
+                $responseDatas = self::transformErrorArray($responseDatas, $e);
+
+                $response = ResponseObject::ResultsObjectToJson($responseDatas, $e->getStatusCode());
             }
 
 
@@ -89,7 +92,7 @@ class Runner
 
             if (self::$config->isDebug()) {
 
-                $response = ResponseUtils::getDefaultResponseArray(
+                $responseDatas = ResponseUtils::getDefaultResponseArray(
                     false,
                     [$e->getTraceAsString()
                     ],
@@ -97,8 +100,10 @@ class Runner
                     $e->getMessage()
                 );
 
+                $responseDatas = self::transformErrorArray($responseDatas, $e);
 
-                $response = ResponseObject::ResultsObjectToJson($response, 500);
+
+                $response = ResponseObject::ResultsObjectToJson($responseDatas, 500);
             } else {
 
                 $response = ResponseObject::ResultCodeHttp(500);
@@ -562,7 +567,7 @@ class Runner
         // Initialise le logger du framework
         $loggerFilePath = $config->getLoggerConfig()->getFwkLogFilepath();
         if (StringUtils::isNullOrEmpty($loggerFilePath)) {
-            $loggerFilePath = FileUtils::join($config->getServerRootPath() , '/miniphprest_log.log');
+            $loggerFilePath = FileUtils::join($config->getServerRootPath(), '/miniphprest_log.log');
         }
         $logger = self::initLogger('miniphprest', $loggerFilePath, $config->getLoggerConfig()->getFwkLogLevel());
         $logger->info('MiniPhpRest started');
@@ -572,7 +577,7 @@ class Runner
         // Initialise le logger applicatif
         $appLoggerFilePath = $config->getLoggerConfig()->getAppLogFilepath();
         if (StringUtils::isNullOrEmpty($appLoggerFilePath)) {
-            $appLoggerFilePath = FileUtils::join($config->getServerRootPath() ,  'miniphprest_app_log.log');
+            $appLoggerFilePath = FileUtils::join($config->getServerRootPath(), 'miniphprest_app_log.log');
         }
         $appLogger = self::initLogger('app', $appLoggerFilePath, $config->getLoggerConfig()->getAppLogLevel());
 
@@ -628,13 +633,9 @@ class Runner
     {
 
 
-       AbstractDbbServices::setConnection(self::$frameworkContext->getMainConnection());
+        AbstractDbbServices::setConnection(self::$frameworkContext->getMainConnection());
 
-       SingletonStore::buildAndRegisterDependencies(self::$config->getDependencies());
-
-
-
-
+        SingletonStore::buildAndRegisterDependencies(self::$config->getDependencies());
 
 
     }
@@ -649,6 +650,38 @@ class Runner
                 throw $e;
             }
         }
+    }
+
+    /**
+     * @param array $responseDatas
+     * @param $e
+     * @return array
+     */
+    public static function transformErrorArray(array $responseDatas, $e): array
+    {
+        if (self::$config->getTransformDataOnErrorFunction() != null) {
+            try {
+                $tResponseDatas = call_user_func_array(self::$config->getTransformDataOnErrorFunction(),
+                    [
+                        $responseDatas,
+                        $e,
+                        LoggerSingleton::get()
+                    ]
+                );
+                if ($tResponseDatas != null && is_array($tResponseDatas)) {
+                    $responseDatas = $tResponseDatas;
+                }
+
+
+            } catch (\Throwable $e) {
+                LoggerSingleton::get()->error(
+                    "Exception catched during transformDataOnErrorFunction execution",
+                    ['exceptionMessage' => $e->getMessage(), 'exceptionTrace' => $e->getTraceAsString()]
+                );
+            }
+        }
+
+        return $responseDatas;
     }
 
 
