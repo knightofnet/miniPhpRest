@@ -48,5 +48,20 @@ class SiteIniFile
         return $defaultValue;
     }
 
+    /**
+     * @param string $section
+     * @param array $defaultReturn
+     * @return array
+     */
+    public function getSectionAsArray(string $section, array $defaultReturn = []): array
+    {
+        if (!isset($this->iniArray[$section])) {
+            return $defaultReturn;
+        }
+
+        return $this->iniArray[$section];
+
+    }
+
 
 }
