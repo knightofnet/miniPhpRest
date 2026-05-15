@@ -17,7 +17,7 @@ class HashMap
      */
     public function push(string $key, $value): void
     {
-        $hash = $this->getHash($value);
+        $hash = $this->getHash($key);
         $this->backedArray[$hash] = ['key' => $key, 'value' => $value];
     }
 
